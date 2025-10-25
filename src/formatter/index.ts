@@ -1,5 +1,11 @@
 import type { Tree, SyntaxNode } from "tree-sitter";
 import type { ERBRegion, ParsedERB, RubyRegion } from "../parser.js";
+import { buildPlaceholderDocument, PLACEHOLDER_PREFIX, PLACEHOLDER_SUFFIX } from "./placeholders.js";
+import {
+  analyzePlaceholderDocument,
+  renderHtmlDocument,
+  type PlaceholderPrintInfo,
+} from "./htmlDocument.js";
 
 export interface FormatterConfig {
   indentation: {
@@ -39,14 +45,18 @@ export type FormatterConfigInput = RecursivePartial<FormatterConfig>;
 
 export type SegmentMode = "passthrough" | "html-normalized" | "ruby-normalized" | "unknown";
 
+export type SegmentKind = "html" | "ruby" | "unknown";
+
 export interface FormatSegment {
-  /** Position of the region in source order. */
+  /** Position of the segment in output order. */
   index: number;
-  /** The originating parsed region. */
-  region: ERBRegion;
-  /** Formatted text for the region (currently passthrough). */
+  /** Category of segment (html fragment, ruby directive, etc.). */
+  kind: SegmentKind;
+  /** Source region that originated this segment, when applicable. */
+  region?: ERBRegion;
+  /** Formatted text for the segment. */
   formatted: string;
-  /** Logical indentation level for the region start. */
+  /** Logical indentation level for the segment start (if applicable). */
   indentationLevel: number;
   /** Indicates which formatting path produced the segment. */
   mode: SegmentMode;
@@ -63,6 +73,12 @@ export interface FormatterResult {
   segments: FormatSegment[];
   diagnostics: FormatterDiagnostic[];
   config: FormatterConfig;
+  debug?: FormatterDebugInfo;
+}
+
+export interface FormatterDebugInfo {
+  placeholderHtml: string;
+  placeholderCount: number;
 }
 
 export const DEFAULT_FORMATTER_CONFIG: FormatterConfig = {
@@ -96,32 +112,41 @@ export const DEFAULT_FORMATTER_CONFIG: FormatterConfig = {
 export function formatERB(parsed: ParsedERB, givenConfig?: FormatterConfigInput): FormatterResult {
   const config = mergeConfig(DEFAULT_FORMATTER_CONFIG, givenConfig);
 
-  const segments: FormatSegment[] = [];
-  let currentIndent = 0;
+  const placeholderDocument = buildPlaceholderDocument(parsed.regions);
+  const htmlAnalysis = analyzePlaceholderDocument(placeholderDocument);
+  const htmlPrint = renderHtmlDocument(
+    htmlAnalysis,
+    config.indentation.size,
+    config.indentation.style,
+    config.html.collapseWhitespace,
+  );
 
-  parsed.regions.forEach((region, index) => {
-    const indentationEffects =
-      region.type === "ruby" && region.flavor === "logic"
-        ? analyzeRubyIndentation(region)
-        : ZERO_INDENTATION_EFFECT;
+  const { output, segments, rubyDiagnostics } = composeOutput(
+    htmlPrint.html,
+    htmlPrint.placeholderPrintInfo,
+    parsed,
+    config,
+  );
 
-    const indentLevel = clampIndent(currentIndent + indentationEffects.before);
-    const segment = formatRegion(region, index, config, indentLevel);
-    segments.push(segment);
-
-    if (region.type === "ruby" && region.flavor === "logic") {
-      currentIndent = clampIndent(indentLevel + indentationEffects.after);
-    }
+  const diagnostics: FormatterDiagnostic[] = [];
+  htmlAnalysis.diagnostics.forEach((diag) => {
+    diagnostics.push({
+      index: diag.entry?.regionIndex ?? -1,
+      severity: diag.severity,
+      message: diag.message,
+    });
   });
-
-  ensureFinalNewline(segments, config);
-  const output = segments.map((segment) => segment.formatted).join("");
+  diagnostics.push(...rubyDiagnostics);
 
   return {
     output,
     segments,
-    diagnostics: [],
+    diagnostics,
     config,
+    debug: {
+      placeholderHtml: htmlPrint.html,
+      placeholderCount: placeholderDocument.placeholders.length,
+    },
   };
 }
 
@@ -139,50 +164,6 @@ function mergeConfig(
   if (!override) return baseline;
   deepMergeInto(baseline as unknown as Record<string, unknown>, override as Record<string, unknown>);
   return baseline;
-}
-
-function formatRegion(
-  region: ERBRegion,
-  index: number,
-  config: FormatterConfig,
-  indentationLevel: number,
-): FormatSegment {
-  let formatted = region.text;
-  let mode: SegmentMode = "passthrough";
-
-  if (region.type === "html") {
-    formatted = formatHtmlSegment(region.text, indentationLevel, config);
-    mode = determineSegmentMode(region, formatted);
-  } else if (region.type === "ruby") {
-    formatted = normalizeSegmentText(region.text, config);
-    if (region.flavor === "logic") {
-      formatted = applyIndentation(formatted, indentationLevel, config, { indentFirstLine: true });
-    }
-    mode = determineSegmentMode(region, formatted);
-  } else {
-    mode = "unknown";
-  }
-
-  return {
-    index,
-    region,
-    formatted,
-    indentationLevel,
-    mode,
-  };
-}
-
-function determineSegmentMode(region: ERBRegion, formatted: string): SegmentMode {
-  if (formatted === region.text) {
-    return "passthrough";
-  }
-  if (region.type === "html") {
-    return "html-normalized";
-  }
-  if (region.type === "ruby") {
-    return "ruby-normalized";
-  }
-  return "unknown";
 }
 
 function normalizeSegmentText(text: string, config: FormatterConfig): string {
@@ -230,7 +211,6 @@ function ensureFinalNewline(segments: FormatSegment[], config: FormatterConfig):
     const trimmedWhitespace = last.formatted.replace(/[ \t]+$/g, "");
     if (trimmedWhitespace !== last.formatted) {
       last.formatted = trimmedWhitespace;
-      last.mode = determineSegmentMode(last.region, last.formatted);
     }
   }
   const trailingMatch = last.formatted.match(/(?:\r?\n)+$/);
@@ -238,18 +218,15 @@ function ensureFinalNewline(segments: FormatSegment[], config: FormatterConfig):
   if (trailingMatch) {
     const trailing = trailingMatch[0];
     if (trailing === eol && trailingMatch.index !== undefined && trailingMatch.index + trailing.length === last.formatted.length) {
-      // Already exactly one newline of the desired style.
       return;
     }
     const trimmed = last.formatted.slice(0, -trailing.length);
     const nextText = trimmed + eol;
     if (nextText !== last.formatted) {
       last.formatted = nextText;
-      last.mode = determineSegmentMode(last.region, last.formatted);
     }
   } else {
     last.formatted = last.formatted + eol;
-    last.mode = determineSegmentMode(last.region, last.formatted);
   }
 }
 
@@ -378,6 +355,164 @@ function deepClone<T>(input: T): T {
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+interface ComposeOutputResult {
+  output: string;
+  segments: FormatSegment[];
+  rubyDiagnostics: FormatterDiagnostic[];
+}
+
+function composeOutput(
+  htmlWithPlaceholders: string,
+  placeholderPrintInfo: PlaceholderPrintInfo[],
+  parsed: ParsedERB,
+  config: FormatterConfig,
+): ComposeOutputResult {
+  const placeholderMap = new Map<number, PlaceholderPrintInfo>();
+  placeholderPrintInfo.forEach((info) => {
+    placeholderMap.set(info.entry.id, info);
+  });
+
+  const segments: FormatSegment[] = [];
+  const diagnostics: FormatterDiagnostic[] = [];
+  const placeholderPattern = new RegExp(`${PLACEHOLDER_PREFIX}(\\d+)${PLACEHOLDER_SUFFIX}`, "g");
+  const indentUnit = config.indentation.style === "tab" ? "\t" : " ".repeat(config.indentation.size);
+
+  let lastIndex = 0;
+  let currentRubyIndent = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = placeholderPattern.exec(htmlWithPlaceholders)) !== null) {
+    const start = match.index;
+    const id = Number.parseInt(match[1], 10);
+    const info = placeholderMap.get(id);
+
+    if (start > lastIndex) {
+      let htmlText = htmlWithPlaceholders.slice(lastIndex, start);
+      if (htmlText) {
+        const trailingMatch = htmlText.match(/[ \t]+$/);
+        if (trailingMatch) {
+          const startIdx = trailingMatch.index ?? 0;
+          const preceding = htmlText.slice(0, startIdx);
+          if (startIdx === 0 || preceding.endsWith("\n")) {
+            htmlText = htmlText.slice(0, startIdx);
+          }
+        }
+        htmlText = adjustHtmlSegment(htmlText, currentRubyIndent, indentUnit);
+        segments.push({
+          index: segments.length,
+          kind: "html",
+          formatted: htmlText,
+          indentationLevel: 0,
+          mode: "html-normalized",
+        });
+      }
+    }
+
+    if (!info) {
+      diagnostics.push({
+        index: -1,
+        severity: "error",
+        message: `No placeholder info found for id ${id}`,
+      });
+      lastIndex = placeholderPattern.lastIndex;
+      continue;
+    }
+
+    const rubyResult = formatRubyPlaceholderSegment(info, currentRubyIndent, config, indentUnit);
+    currentRubyIndent = rubyResult.nextIndent;
+    segments.push({
+      index: segments.length,
+      kind: "ruby",
+      region: info.entry.region,
+      formatted: rubyResult.formatted,
+      indentationLevel: rubyResult.indentationLevel,
+      mode: rubyResult.mode,
+    });
+
+    lastIndex = placeholderPattern.lastIndex;
+  }
+
+  if (lastIndex < htmlWithPlaceholders.length) {
+    const tail = htmlWithPlaceholders.slice(lastIndex);
+    if (tail) {
+      const adjustedTail = adjustHtmlSegment(tail, currentRubyIndent, indentUnit);
+      segments.push({
+        index: segments.length,
+        kind: "html",
+        formatted: adjustedTail,
+        indentationLevel: 0,
+        mode: "html-normalized",
+      });
+    }
+  }
+
+  ensureFinalNewline(segments, config);
+  const output = segments.map((segment) => segment.formatted).join("");
+
+  return {
+    output,
+    segments,
+    rubyDiagnostics: diagnostics,
+  };
+}
+
+interface RubyPlaceholderResult {
+  formatted: string;
+  indentationLevel: number;
+  mode: SegmentMode;
+  nextIndent: number;
+}
+
+function formatRubyPlaceholderSegment(
+  info: PlaceholderPrintInfo,
+  currentRubyIndent: number,
+  config: FormatterConfig,
+  indentUnit: string,
+): RubyPlaceholderResult {
+  const { region } = info.entry;
+
+  if (info.inline || info.inAttribute) {
+    const inlineText = region.text.trim();
+    return {
+      formatted: inlineText,
+      indentationLevel: 0,
+      mode: "ruby-normalized",
+      nextIndent: currentRubyIndent,
+    };
+  }
+
+  const normalized = normalizeSegmentText(region.text, config);
+  const effects = region.flavor === "logic" ? analyzeRubyIndentation(region) : ZERO_INDENTATION_EFFECT;
+  const containerIndentContribution = info.indentationLevel;
+  const rubyIndentLevel = clampIndent(currentRubyIndent + effects.before);
+  const totalIndentLevel = clampIndent(containerIndentContribution + rubyIndentLevel);
+
+  const formatted = applyIndentation(normalized, totalIndentLevel, config, {
+    indentFirstLine: true,
+  });
+
+  const nextIndent = region.flavor === "logic"
+    ? clampIndent(rubyIndentLevel + effects.after)
+    : currentRubyIndent;
+
+  return {
+    formatted,
+    indentationLevel: totalIndentLevel,
+    mode: "ruby-normalized",
+    nextIndent,
+  };
+}
+
+function adjustHtmlSegment(text: string, rubyIndentLevel: number, indentUnit: string): string {
+  if (rubyIndentLevel <= 0) {
+    return text;
+  }
+  const indentAddition = indentUnit.repeat(rubyIndentLevel);
+  return text.replace(/(\n)([ \t]*)(?=\S)/g, (_, newline, spaces) => {
+    return `${newline}${indentAddition}${spaces}`;
+  });
 }
 
 interface IndentationEffect {

@@ -56,10 +56,11 @@ function printRegions(regions: ParsedERB["regions"]) {
 function printSegments(segments: FormatSegment[]) {
   console.log("\n=== Formatter Segments ===");
   segments.forEach((segment) => {
-    const header = `[${segment.index}] ${segment.region.type.toUpperCase()} mode=${segment.mode} indent=${segment.indentationLevel}`;
+    const typeLabel = segment.region ? segment.region.type.toUpperCase() : segment.kind.toUpperCase();
+    const header = `[${segment.index}] ${typeLabel} mode=${segment.mode} indent=${segment.indentationLevel}`;
     const formattedPreview = preview(segment.formatted);
-    const originalPreview = preview(segment.region.text);
-    if (formattedPreview === originalPreview) {
+    const originalPreview = segment.region ? preview(segment.region.text) : null;
+    if (!originalPreview || formattedPreview === originalPreview) {
       console.log(`${header} ${formattedPreview}`);
     } else {
       console.log(`${header} formatted=${formattedPreview}`);

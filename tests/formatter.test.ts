@@ -9,13 +9,14 @@ describe("formatERB", () => {
   const source = fs.readFileSync("examples/sample.erb", "utf8");
   const parsed = parseERB(source);
 
-  it("returns a passthrough output with explicit segments", () => {
+  it("formats sample template into structured output", () => {
     const result = formatERB(parsed);
-    expect(result.output).toBe(source);
-    expect(result.segments).toHaveLength(parsed.regions.length);
-    expect(result.segments.every((segment) => segment.mode === "passthrough")).toBe(true);
+    expect(result.output).toBe(`<% if @user %>\n  <h1>Welcome, <%= @user.name %>!</h1>\n  <p>Your email is <%= @user.email %>.</p>\n<% else %>\n  <p>Please log in.</p>\n<% end %>\n`);
+    expect(result.segments.some((segment) => segment.kind === "html")).toBe(true);
+    expect(result.segments.some((segment) => segment.kind === "ruby")).toBe(true);
     expect(result.diagnostics).toEqual([]);
     expect(result.config).toEqual(DEFAULT_FORMATTER_CONFIG);
+    expect(result.debug?.placeholderHtml).toContain("__ERB_PLACEHOLDER_0__");
   });
 
   it("merges custom configuration without mutating defaults", () => {
@@ -36,13 +37,7 @@ describe("formatERB", () => {
     if (unformatted.endsWith("\n")) {
       unformatted = unformatted.slice(0, -1);
     }
-    const expected = `<% if @user %>
-  <h1>Welcome, <%= @user.name %>!</h1>
-  <p>Your email is <%= @user.email %>.</p>
-<% else %>
-  <p>Please log in.</p>
-<% end %>
-`;
+    const expected = `<% if @user %>\n  <h1>Welcome, <%= @user.name %>!</h1>\n  <p>Your email is <%= @user.email %>.</p>\n<% else %>\n  <p>Please log in.</p>\n<% end %>\n`;
 
     const parsedUnformatted = parseERB(unformatted);
     const result = formatERB(parsedUnformatted);
@@ -50,8 +45,8 @@ describe("formatERB", () => {
     expect(result.output).toBe(expected);
     expect(result.output.endsWith("\n")).toBe(true);
     expect(result.output).not.toMatch(/[ \t]+$/m);
-    expect(result.segments.some((segment) => segment.mode === "html-normalized")).toBe(true);
-    expect(result.segments.some((segment) => segment.mode === "ruby-normalized")).toBe(true);
+    expect(result.segments.some((segment) => segment.kind === "html")).toBe(true);
+    expect(result.segments.some((segment) => segment.kind === "ruby")).toBe(true);
   });
 
   it("computes indentation levels for nested ruby directives", () => {
@@ -84,7 +79,7 @@ describe("formatERB", () => {
     const logicIndentLevels = result.segments
       .filter(isLogicSegment)
       .map((segment) => ({
-        code: segment.region.code.trim(),
+        code: segment.region!.code.trim(),
         level: segment.indentationLevel,
       }));
 
@@ -105,7 +100,9 @@ describe("formatERB", () => {
     expect(result.output).toBe(`<% if condition %>\n  <span>Body</span>\n<% end # comment %>\n`);
 
     const logicSegments = result.segments.filter(isLogicSegment);
-    expect(logicSegments.map((segment) => ({ code: segment.region.code, level: segment.indentationLevel }))).toEqual([
+    expect(
+      logicSegments.map((segment) => ({ code: segment.region!.code, level: segment.indentationLevel })),
+    ).toEqual([
       { code: "if condition", level: 0 },
       { code: "end # comment", level: 0 },
     ]);
@@ -117,30 +114,35 @@ describe("formatERB", () => {
 
     expect(result.output).toMatchInlineSnapshot(`
       "<div class="dashboard">
-      <% @projects.each do |project| %>
-        <div class="project">
-        <h2> <%= project.name %></h2>
-        <ul>
-        <% project.tasks.each do |task| %>
-          <li class="<%= task.completed? ? 'done' : 'pending' %>">
-          <span> <%= task.title %></span>
-          <% if task.notes.present? %>
-
-            <p class="notes"> <%= task.notes %></p>
-          <% end %>
-          </li>
+        <% @projects.each do |project| %>
+          <div class="project">
+            <h2><%= project.name %></h2>
+            <ul>
+              <% project.tasks.each do |task| %>
+                <li class="<%= task.completed? ? 'done' : 'pending' %>">
+                  <span><%= task.title %></span>
+                  <% if task.notes.present? %>
+                    <p class="notes"><%= task.notes %></p>
+                  <% end %>
+                </li>
+              <% end %>
+            </ul>
+          </div>
         <% end %>
-        </ul>
-        </div>
-      <% end %>
       </div>
       "
     `);
 
+    expect(result.debug?.placeholderHtml).toContain("__ERB_PLACEHOLDER_0__");
     expect(result.output).not.toMatch(/>[ \t]{2,}</); // adjacent tags separated by multiple spaces
   });
 });
 
 function isLogicSegment(segment: FormatSegment): segment is FormatSegment & { region: RubyRegion } {
-  return segment.region.type === "ruby" && segment.region.flavor === "logic";
+  return (
+    segment.kind === "ruby" &&
+    !!segment.region &&
+    segment.region.type === "ruby" &&
+    segment.region.flavor === "logic"
+  );
 }
