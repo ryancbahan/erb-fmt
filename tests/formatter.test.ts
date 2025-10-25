@@ -113,43 +113,41 @@ describe("formatERB", () => {
     const result = formatERB(parseERB(source));
 
     expect(result.output).toMatchInlineSnapshot(`
-      "<div class="dashboard" data-owner="<%= @owner&.name %>" data-project-count="<%= @projects.size %>" data-theme="<%=@theme||'default'%>">
-        <%   @projects.each do    |project|   %>
-          <div class="project-card" id="project-<%=   project.id    %>" data-state="<%=project.state%>" data-tags="<%= project.tags.join(',') %>" data-featured="<%= project.featured? %>">
+      "<div class="dashboard" data-owner="<%= @owner&.name %>" data-project-count="<%= @projects.size %>" data-theme="<%= @theme||'default' %>">
+        <% @projects.each do |project| %>
+          <div class="project-card" id="project-<%= project.id %>" data-state="<%= project.state %>" data-tags="<%= project.tags.join(',') %>" data-featured="<%= project.featured? %>">
             <header class="card-header" data-empty="<%= project.tasks.empty? %>">
-              <h2 title="<%=project.name%>">
+              <h2 title="<%= project.name %>">
                 <span class="icon <%= project.icon_class %>"></span>
-                <%=   project.name.upcase   %>
+                <%= project.name.upcase %>
               </h2>
-              <div class="metadata" data-owner="<%= project.owner&.name   ||   'Unassigned' %>" data-due="<%= project.due_at&.iso8601 %>" data-budget="<%= number_to_currency(project.budget) %>" data-flags="<%= project.flags.join('|') %>">
+              <div class="metadata" data-owner="<%= project.owner&.name || 'Unassigned' %>" data-due="<%= project.due_at&.iso8601 %>" data-budget="<%= number_to_currency(project.budget) %>" data-flags="<%= project.flags.join('|') %>">
                 <span class="owner"><%= project.owner&.name || 'Unassigned' %></span>
                 <span class="due" data-kind="date"><%= project.due_at ? l(project.due_at, format: :long) : 'No deadline' %></span>
                 <span class="budget" data-currency="USD"><%= number_to_currency(project.budget||0) %></span>
               </div>
             </header>
             <section class="card-body">
-              <ul class="task-list" data-count="<%=project.tasks.size%>" data-has-overdue="<%= project.tasks.any?(&:overdue?) %>" data-random="<%= SecureRandom.hex(2) %>">
-                <% project.tasks.each_with_index do |task, index|
-                %>
+              <ul class="task-list" data-count="<%= project.tasks.size %>" data-has-overdue="<%= project.tasks.any?(&:overdue?) %>" data-random="<%= SecureRandom.hex(2) %>">
+                <% project.tasks.each_with_index do |task, index| %>
                   <li class="task <%= task.completed? ? 'done' : 'pending' %>" data-index="<%= index %>" data-id="<%= task.id %>" data-tags="<%= task.tags.join(';') %>">
                     <span class="title" data-priority="<%= task.priority %>"><%= task.title.strip %></span>
-                    <span class="assignee" data-role="<%= task.assignee&.role %>"><%= task.assignee&.name ||   'Unassigned' %></span>
+                    <span class="assignee" data-role="<%= task.assignee&.role %>"><%= task.assignee&.name || 'Unassigned' %></span>
                     <div class="flags" data-flags="<%= task.flags.join('|') %>">
-                      <% task.flags.each do |flag|
-                      %>
+                      <% task.flags.each do |flag| %>
                         <span class="flag flag-<%= flag.parameterize %>" data-flag="<%= flag %>"><%= flag.humanize %></span>
                       <% end %>
                     </div>
-                    <% if    task.notes.present?   %>
+                    <% if task.notes.present? %>
                       <details class="notes" data-length="<%= task.notes.length %>" data-trimmed="<%= (task.notes.strip == task.notes).to_s %>">
-                  <summary>Notes</summary>
-      <pre class ="note-body" data-source ="<%= task.note_source %>">
+                        <summary>Notes</summary>
+                        <pre class="note-body" data-source="<%= task.note_source %>">
       <%= task.notes %>
                   </pre>
                 </details>
                               <% else %>
                       <span class="notes-placeholder">No additional notes</span>
-                    <%  end  %>
+                    <% end %>
                   </li>
                 <% end %>
                 <li class="task summary" data-summary="true" data-id="summary-<%= project.id %>" data-total-duration="<%= project.tasks.sum(&:duration) %>" data-completed="<%= project.tasks.count(&:completed?) %>">
@@ -213,6 +211,37 @@ describe("formatERB", () => {
       >Content</div>
       "
     `);
+  });
+
+  it("normalizes spacing inside ruby directives", () => {
+    const snippet = `<div>
+<%   if  condition   %>
+  <span><%=   user.name   %></span>
+<%    end   %>
+</div>`;
+    const result = formatERB(parseERB(snippet));
+
+    expect(result.output).toBe(`<div>
+  <% if condition %>
+    <span><%= user.name %></span>
+  <% end %>
+</div>
+`);
+  });
+
+  it("is idempotent for example fixtures", () => {
+    const fixtures = [
+      "examples/sample.erb",
+      "examples/sample-unformatted.erb",
+      "examples/dashboard-unformatted.erb",
+    ];
+
+    fixtures.forEach((fixturePath) => {
+      const source = fs.readFileSync(fixturePath, "utf8");
+      const firstPass = formatERB(parseERB(source)).output;
+      const secondPass = formatERB(parseERB(firstPass)).output;
+      expect(secondPass).toBe(firstPass);
+    });
   });
 });
 

@@ -83,7 +83,7 @@ describe("html document analysis", () => {
                   data-trimmed="__ERB_PLACEHOLDER_39__"
                 >
                   <summary>Notes</summary>
-      <pre class ="note-body" data-source ="__ERB_PLACEHOLDER_40__">
+                  <pre class="note-body" data-source="__ERB_PLACEHOLDER_40__">
       __ERB_PLACEHOLDER_41__
                   </pre>
                 </details>

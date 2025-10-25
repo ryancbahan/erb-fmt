@@ -206,12 +206,32 @@ export function renderHtmlDocument(
     const attributes = collectAttributes(startTag, depth, tagName);
 
     if (sensitive) {
-      registerPlaceholdersInSlice(node.startIndex, node.endIndex, depth, inline, true);
-      const slice = documentHtml.slice(node.startIndex, node.endIndex);
-      if (!parentInline && !slice.endsWith("\n")) {
-        return `${slice}\n`;
+      const endTag = findEndTag(node);
+      const innerStart = startTag.endIndex;
+      const innerEnd = endTag ? endTag.startIndex : startTag.endIndex;
+      registerPlaceholdersInSlice(innerStart, innerEnd, depth + 1, inline, true);
+
+      const rawInnerContent = documentHtml.slice(innerStart, innerEnd);
+      let innerContent = rawInnerContent;
+      const closingIndent = indent(depth);
+      if (closingIndent.length > 0 && innerContent.endsWith(`\n${closingIndent}`)) {
+        innerContent = innerContent.slice(0, -closingIndent.length);
       }
-      return slice;
+
+      let result = `${indent(depth)}<${tagName}${attributes}>`;
+      if (innerContent) {
+        if (!innerContent.startsWith("\n")) {
+          result += "\n";
+        }
+        result += innerContent;
+        if (!innerContent.endsWith("\n")) {
+          result += "\n";
+        }
+      } else {
+        result += "\n";
+      }
+      result += `${indent(depth)}</${tagName}>\n`;
+      return result;
     }
     const openTag = `${indent(depth)}<${tagName}${attributes}>`;
 
@@ -518,4 +538,14 @@ function findParentElementName(node: SyntaxNode): string {
     current = current.parent;
   }
   return "";
+}
+
+function findEndTag(node: SyntaxNode): SyntaxNode | null {
+  for (let i = node.namedChildCount - 1; i >= 0; i -= 1) {
+    const child = node.namedChild(i);
+    if (child?.type === "end_tag") {
+      return child;
+    }
+  }
+  return null;
 }
