@@ -113,20 +113,62 @@ describe("formatERB", () => {
     const result = formatERB(parseERB(source));
 
     expect(result.output).toMatchInlineSnapshot(`
-      "<div class="dashboard">
-        <% @projects.each do |project| %>
-          <div class="project">
-            <h2><%= project.name %></h2>
-            <ul>
-              <% project.tasks.each do |task| %>
-                <li class="<%= task.completed? ? 'done' : 'pending' %>">
-                  <span><%= task.title %></span>
-                  <% if task.notes.present? %>
-                    <p class="notes"><%= task.notes %></p>
-                  <% end %>
+      "<div class="dashboard" data-owner="<%= @owner&.name %>" data-project-count="<%= @projects.size %>" data-theme="<%=@theme||'default'%>">
+        <%   @projects.each do    |project|   %>
+          <div class="project-card" id="project-<%=   project.id    %>" data-state="<%=project.state%>" data-tags="<%= project.tags.join(',') %>" data-featured="<%= project.featured? %>">
+            <header class="card-header" data-empty="<%= project.tasks.empty? %>">
+              <h2 title="<%=project.name%>">
+                <span class="icon <%= project.icon_class %>"></span>
+                <%=   project.name.upcase   %>
+              </h2>
+              <div class="metadata" data-owner="<%= project.owner&.name   ||   'Unassigned' %>" data-due="<%= project.due_at&.iso8601 %>" data-budget="<%= number_to_currency(project.budget) %>" data-flags="<%= project.flags.join('|') %>">
+                <span class="owner"><%= project.owner&.name || 'Unassigned' %></span>
+                <span class="due" data-kind="date"><%= project.due_at ? l(project.due_at, format: :long) : 'No deadline' %></span>
+                <span class="budget" data-currency="USD"><%= number_to_currency(project.budget||0) %></span>
+              </div>
+            </header>
+            <section class="card-body">
+              <ul class="task-list" data-count="<%=project.tasks.size%>" data-has-overdue="<%= project.tasks.any?(&:overdue?) %>" data-random="<%= SecureRandom.hex(2) %>">
+                <% project.tasks.each_with_index do |task, index|
+                %>
+                  <li class="task <%= task.completed? ? 'done' : 'pending' %>" data-index="<%= index %>" data-id="<%= task.id %>" data-tags="<%= task.tags.join(';') %>">
+                    <span class="title" data-priority="<%= task.priority %>"><%= task.title.strip %></span>
+                    <span class="assignee" data-role="<%= task.assignee&.role %>"><%= task.assignee&.name ||   'Unassigned' %></span>
+                    <div class="flags" data-flags="<%= task.flags.join('|') %>">
+                      <% task.flags.each do |flag|
+                      %>
+                        <span class="flag flag-<%= flag.parameterize %>" data-flag="<%= flag %>"><%= flag.humanize %></span>
+                      <% end %>
+                    </div>
+                    <% if    task.notes.present?   %>
+                      <details class="notes" data-length="<%= task.notes.length %>" data-trimmed="<%= (task.notes.strip == task.notes).to_s %>">
+                  <summary>Notes</summary>
+      <pre class ="note-body" data-source ="<%= task.note_source %>">
+      <%= task.notes %>
+                  </pre>
+                </details>
+                              <% else %>
+                      <span class="notes-placeholder">No additional notes</span>
+                    <%  end  %>
+                  </li>
+                <% end %>
+                <li class="task summary" data-summary="true" data-id="summary-<%= project.id %>" data-total-duration="<%= project.tasks.sum(&:duration) %>" data-completed="<%= project.tasks.count(&:completed?) %>">
+                  <span>Total time logged:</span>
+                  <strong><%= project.tasks.sum(&:duration).then { |minutes| "#{minutes / 60}h #{minutes % 60}m" } %></strong>
+                  <span class="completed" data-completed="<%= project.tasks.count(&:completed?) %>">Completed: <%= project.tasks.count(&:completed?) %></span>
                 </li>
-              <% end %>
-            </ul>
+                <li class="task metrics" data-summary="secondary" data-id="metrics-<%= project.id %>">
+                  <span class="velocity">Velocity: <%= project.velocity || 'N/A' %></span>
+                  <span class="health" data-health="<%= project.health %>">Health: <%= project.health %></span>
+                  <span class="risk" data-risk="<%= project.risk %>">Risk: <%= project.risk %></span>
+                </li>
+              </ul>
+            </section>
+            <footer class="card-footer" data-created="<%= project.created_at.iso8601 %>" data-updated="<%= project.updated_at.iso8601 %>" data-links="view,edit,archive">
+              <a class="btn btn-sm" href="<%= project_path(project) %>" data-action="view" data-hotkey="v">View Project</a>
+              <a class="btn btn-sm" href="<%= edit_project_path(project) %>" data-action="edit" data-enabled="<%= can?(:update, project) %>">Edit</a>
+              <button class="btn btn-sm" data-action="archive" data-confirm="Are you sure you want to archive <%= project.name %>?" data-enabled="<%= can?(:archive, project) %>">Archive</button>
+            </footer>
           </div>
         <% end %>
       </div>
@@ -135,6 +177,42 @@ describe("formatERB", () => {
 
     expect(result.debug?.placeholderHtml).toContain("__ERB_PLACEHOLDER_0__");
     expect(result.output).not.toMatch(/>[ \t]{2,}</); // adjacent tags separated by multiple spaces
+  });
+
+  it("preserves whitespace-sensitive content", () => {
+    const snippet = `<pre>
+  line 1
+  <% if condition %>
+    yield
+  <% end %>
+</pre>`;
+    const result = formatERB(parseERB(snippet));
+
+    expect(result.output).toBe(`<pre>
+  line 1
+  <% if condition %>
+    yield
+  <% end %>
+</pre>
+`);
+  });
+
+  it("wraps attributes according to width settings", () => {
+    const snippet = `<div id="foo" class="alpha beta gamma delta epsilon zeta eta theta iota">Content</div>`;
+    const result = formatERB(parseERB(snippet), {
+      html: {
+        attributeWrapping: "auto",
+        lineWidth: 40,
+      },
+    });
+
+    expect(result.output).toMatchInlineSnapshot(`
+      "<div
+        id="foo"
+        class="alpha beta gamma delta epsilon zeta eta theta iota"
+      >Content</div>
+      "
+    `);
   });
 });
 

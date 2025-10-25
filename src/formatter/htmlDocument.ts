@@ -52,6 +52,14 @@ const VOID_ELEMENTS = new Set([
   "wbr",
 ]);
 
+const WHITESPACE_SENSITIVE_ELEMENTS = new Set([
+  "pre",
+  "code",
+  "textarea",
+  "script",
+  "style",
+]);
+
 export interface HtmlPlaceholderInfo {
   entry: PlaceholderEntry;
   node: SyntaxNode;
@@ -59,6 +67,7 @@ export interface HtmlPlaceholderInfo {
   endIndex: number;
   elementDepth: number;
   inAttribute: boolean;
+  insideSensitive: boolean;
   parentElementName: string;
 }
 
@@ -84,6 +93,7 @@ export interface PlaceholderPrintInfo {
   indentationLevel: number;
   inline: boolean;
   inAttribute: boolean;
+  sensitive: boolean;
 }
 
 export function analyzePlaceholderDocument(document: PlaceholderDocument): HtmlDocumentAnalysis {
@@ -116,7 +126,7 @@ export function analyzePlaceholderDocument(document: PlaceholderDocument): HtmlD
     searchIndex = endIndex;
 
     const node = tree.rootNode.descendantForIndex(startIndex, endIndex) ?? tree.rootNode;
-    const { elementDepth, inAttribute } = computeContext(node);
+    const { elementDepth, inAttribute, insideSensitive } = computeContext(node);
 
     const parentElementName = findParentElementName(node);
 
@@ -127,6 +137,7 @@ export function analyzePlaceholderDocument(document: PlaceholderDocument): HtmlD
       endIndex,
       elementDepth,
       inAttribute,
+      insideSensitive,
       parentElementName,
     });
   });
@@ -138,24 +149,29 @@ export function analyzePlaceholderDocument(document: PlaceholderDocument): HtmlD
   };
 }
 
+export type AttributeWrappingMode = "preserve" | "auto" | "force-multi-line";
+
 export function renderHtmlDocument(
   analysis: HtmlDocumentAnalysis,
+  documentHtml: string,
   indentSize: number,
   indentStyle: "space" | "tab",
   collapseWhitespace: "preserve" | "conservative" | "aggressive",
+  lineWidth: number | null,
+  attributeWrapping: AttributeWrappingMode,
 ): HtmlPrintResult {
   const indentUnit = indentStyle === "tab" ? "\t" : " ".repeat(indentSize);
-  const placeholderByToken = new Map<string, PlaceholderEntry>();
+  const placeholderInfoByToken = new Map<string, HtmlPlaceholderInfo>();
   analysis.placeholders.forEach((info) => {
-    placeholderByToken.set(info.entry.placeholder, info.entry);
+    placeholderInfoByToken.set(info.entry.placeholder, info);
   });
 
   const placeholderPrintInfo: PlaceholderPrintInfo[] = [];
 
-  function printNode(node: SyntaxNode, depth: number, parentInline: boolean): string {
+  function printNode(node: SyntaxNode, depth: number, parentInline: boolean, sensitiveContext: boolean): string {
     switch (node.type) {
       case "element":
-        return printElement(node, depth, parentInline);
+        return printElement(node, depth, parentInline, sensitiveContext);
       case "self_closing_tag":
       case "erroneous_end_tag":
       case "script_element":
@@ -164,7 +180,7 @@ export function renderHtmlDocument(
       case "comment":
         return `${indent(depth)}${node.text.trim()}\n`;
       case "text":
-        return printTextNode(node, depth, parentInline);
+        return printTextNode(node, depth, parentInline, sensitiveContext);
       default:
         if (node.namedChildCount === 0) {
           const text = node.text.trim();
@@ -173,20 +189,30 @@ export function renderHtmlDocument(
         let acc = "";
         for (let i = 0; i < node.namedChildCount; i += 1) {
           const child = node.namedChild(i);
-          if (child) acc += printNode(child, depth, parentInline);
+          if (child) acc += printNode(child, depth, parentInline, sensitiveContext);
         }
         return acc;
     }
   }
 
-  function printElement(node: SyntaxNode, depth: number, parentInline: boolean): string {
+  function printElement(node: SyntaxNode, depth: number, parentInline: boolean, parentSensitive: boolean): string {
     const startTag = node.namedChild(0);
     if (!startTag) return "";
     const tagName = extractTagName(startTag);
     const inline = INLINE_ELEMENTS.has(tagName);
     const voidElement = VOID_ELEMENTS.has(tagName);
+    const sensitive = parentSensitive || (tagName ? WHITESPACE_SENSITIVE_ELEMENTS.has(tagName) : false);
 
-    const attributes = collectAttributes(startTag);
+    const attributes = collectAttributes(startTag, depth, tagName);
+
+    if (sensitive) {
+      registerPlaceholdersInSlice(node.startIndex, node.endIndex, depth, inline, true);
+      const slice = documentHtml.slice(node.startIndex, node.endIndex);
+      if (!parentInline && !slice.endsWith("\n")) {
+        return `${slice}\n`;
+      }
+      return slice;
+    }
     const openTag = `${indent(depth)}<${tagName}${attributes}>`;
 
     const children: SyntaxNode[] = [];
@@ -204,14 +230,14 @@ export function renderHtmlDocument(
       return `${openTag}</${tagName}>\n`;
     }
 
-    if (children.length === 1 && children[0].type === "text") {
-      const inlineContent = printTextNode(children[0], depth + 1, true).trim();
+    if (!sensitive && children.length === 1 && children[0].type === "text") {
+      const inlineContent = printTextNode(children[0], depth + 1, true, sensitive).trim();
       return `${indent(depth)}<${tagName}${attributes}>${inlineContent}</${tagName}>\n`;
     }
 
     let result = `${openTag}${inline ? "" : "\n"}`;
     children.forEach((child) => {
-      result += printNode(child, depth + 1, inline);
+      result += printNode(child, depth + 1, inline, sensitive);
     });
     if (!inline) {
       result += indent(depth);
@@ -220,38 +246,145 @@ export function renderHtmlDocument(
     return result;
   }
 
-  function collectAttributes(startTag: SyntaxNode): string {
-    const attributes: string[] = [];
+  function collectAttributes(startTag: SyntaxNode, depth: number, tagName: string): string {
+    const attributeNodes: SyntaxNode[] = [];
     for (let i = 0; i < startTag.namedChildCount; i += 1) {
       const child = startTag.namedChild(i);
-      if (!child) continue;
-      if (child.type === "attribute") {
-        const text = child.text.trim();
-        registerAttributePlaceholders(text);
-        attributes.push(text.replace(/\s+/g, " "));
+      if (child?.type === "attribute") {
+        attributeNodes.push(child);
       }
     }
-    return attributes.length ? ` ${attributes.join(" ")}` : "";
+
+    if (attributeNodes.length === 0) {
+      return "";
+    }
+
+    const originalAttributesText = captureOriginalAttributes(startTag, attributeNodes);
+
+    const formattedAttributes = attributeNodes.map((node) => formatAttribute(node));
+    const hasFailedFormatting = formattedAttributes.some((attr) => attr.length === 0);
+    const inlineSuffix = ` ${formattedAttributes.join(" ")}`;
+    const baseLength = indent(depth).length + 1 + tagName.length + inlineSuffix.length + 1;
+    const originalHadLineBreak = /\r?\n/.test(originalAttributesText);
+
+    if (hasFailedFormatting) {
+      registerAttributePlaceholders(originalAttributesText);
+      return originalAttributesText;
+    }
+
+    if (attributeWrapping === "preserve") {
+      if (originalHadLineBreak) {
+        const attrIndent = indent(depth + 1);
+        const multilineLines = formattedAttributes.map((attr) => `${attrIndent}${attr}`).join("\n");
+        const preserved = `\n${multilineLines}\n${indent(depth)}`;
+        registerAttributePlaceholders(preserved);
+        return preserved;
+      }
+      registerAttributePlaceholders(inlineSuffix);
+      return inlineSuffix;
+    }
+
+    const shouldForceMultiline =
+      attributeWrapping === "force-multi-line" ||
+      (attributeWrapping === "auto" &&
+        ((originalHadLineBreak && formattedAttributes.length > 0) ||
+          (lineWidth !== null && baseLength > lineWidth)));
+
+    if (!shouldForceMultiline) {
+      registerAttributePlaceholders(inlineSuffix);
+      return inlineSuffix;
+    }
+
+    const attrIndent = indent(depth + 1);
+    const multilineLines = formattedAttributes.map((attr) => `${attrIndent}${attr}`).join("\n");
+    const wrapped = `\n${multilineLines}\n${indent(depth)}`;
+    registerAttributePlaceholders(wrapped);
+    return wrapped;
   }
 
-  function printTextNode(node: SyntaxNode, depth: number, parentInline: boolean): string {
-    let text = node.text;
-    if (!text.trim()) return "";
+  function formatAttribute(node: SyntaxNode): string {
+    const raw = documentHtml.slice(node.startIndex, node.endIndex).trim();
+    if (!raw) return "";
+
+    const assignmentIndex = findAttributeAssignmentIndex(raw);
+    if (assignmentIndex === -1) {
+      return raw.replace(/\s+/g, " ");
+    }
+
+    const name = raw.slice(0, assignmentIndex).trim();
+    let value = raw.slice(assignmentIndex + 1).trim();
+    if (!name) return raw.replace(/\s+/g, " ");
+    if (!value) {
+      return name;
+    }
+
+    value = normalizeAttributeValue(value);
+    return `${name}=${value}`;
+  }
+
+  function findAttributeAssignmentIndex(text: string): number {
+    for (let i = 0; i < text.length; i += 1) {
+      const char = text[i];
+      if (char === "=") {
+        return i;
+      }
+    }
+    return -1;
+  }
+
+  function normalizeAttributeValue(value: string): string {
+    if (!value) return value;
+    const first = value[0];
+    const last = value[value.length - 1];
+    if ((first === '"' || first === "'") && last === first) {
+      const inner = value.slice(1, -1);
+      const normalizedInner = normalizeAttributeValueContent(inner);
+      return `${first}${normalizedInner}${first}`;
+    }
+    return normalizeAttributeValueContent(value);
+  }
+
+  function normalizeAttributeValueContent(content: string): string {
+    const trimmed = content.trim();
+    if (!trimmed) return "";
+    return trimmed.replace(/\s+/g, " ");
+  }
+
+  function captureOriginalAttributes(startTag: SyntaxNode, nodes: SyntaxNode[]): string {
+    if (nodes.length === 0) return "";
+    const first = nodes[0];
+    const last = nodes[nodes.length - 1];
+    const tagNameNode = startTag.namedChild(0);
+    const prefixStart = tagNameNode ? tagNameNode.endIndex : startTag.startIndex;
+    const prefix = documentHtml.slice(prefixStart, first.startIndex);
+    const attributesSlice = documentHtml.slice(first.startIndex, last.endIndex);
+    return `${prefix}${attributesSlice}`;
+  }
+
+  function printTextNode(node: SyntaxNode, depth: number, parentInline: boolean, sensitive: boolean): string {
+    let text = documentHtml.slice(node.startIndex, node.endIndex);
 
     const placeholderRegex = new RegExp(`${PLACEHOLDER_PREFIX}(\\d+)${PLACEHOLDER_SUFFIX}`, "g");
     text = text.replace(placeholderRegex, (_, id: string) => {
       const placeholder = `${PLACEHOLDER_PREFIX}${id}${PLACEHOLDER_SUFFIX}`;
-      const entry = placeholderByToken.get(placeholder);
-      if (entry) {
-          placeholderPrintInfo.push({
-            entry,
-            indentationLevel: depth,
-            inline: parentInline,
-            inAttribute: false,
-          });
+      const info = placeholderInfoByToken.get(placeholder);
+      if (info) {
+        placeholderPrintInfo.push({
+          entry: info.entry,
+          indentationLevel: depth,
+          inline: parentInline,
+          inAttribute: false,
+          sensitive: sensitive || info.insideSensitive,
+        });
       }
       return placeholder;
     });
+
+    if (sensitive) {
+      return text;
+    }
+
+    if (!text.trim()) return "";
 
     if (collapseWhitespace !== "preserve") {
       if (parentInline) {
@@ -282,24 +415,54 @@ export function renderHtmlDocument(
     while ((match = regex.exec(text)) !== null) {
       const id = match[1];
       const placeholder = `${PLACEHOLDER_PREFIX}${id}${PLACEHOLDER_SUFFIX}`;
-      const entry = placeholderByToken.get(placeholder);
-      if (entry) {
+      const info = placeholderInfoByToken.get(placeholder);
+      if (info) {
         placeholderPrintInfo.push({
-          entry,
+          entry: info.entry,
           indentationLevel: 0,
           inline: true,
           inAttribute: true,
+          sensitive: false,
+        });
+      }
+    }
+  }
+
+  function registerPlaceholdersInSlice(
+    startIndex: number,
+    endIndex: number,
+    depth: number,
+    inline: boolean,
+    sensitive: boolean,
+  ) {
+    const slice = documentHtml.slice(startIndex, endIndex);
+    const regex = new RegExp(`${PLACEHOLDER_PREFIX}(\\d+)${PLACEHOLDER_SUFFIX}`, "g");
+    let match: RegExpExecArray | null;
+    while ((match = regex.exec(slice)) !== null) {
+      const placeholder = `${PLACEHOLDER_PREFIX}${match[1]}${PLACEHOLDER_SUFFIX}`;
+      const info = placeholderInfoByToken.get(placeholder);
+      if (info) {
+        placeholderPrintInfo.push({
+          entry: info.entry,
+          indentationLevel: depth,
+          inline,
+          inAttribute: false,
+          sensitive: true,
         });
       }
     }
   }
 
   const root = analysis.tree.rootNode;
+  let html = "";
+  for (let i = 0; i < root.namedChildCount; i += 1) {
+    const child = root.namedChild(i);
+    if (child) {
+      html += printNode(child, 0, false, false);
+    }
+  }
   return {
-    html: Array.from({ length: root.namedChildCount }, (_, idx) => {
-      const child = root.namedChild(idx);
-      return child ? printNode(child, 0, false) : "";
-    }).join(""),
+    html,
     placeholderPrintInfo,
   };
 }
@@ -320,11 +483,19 @@ function extractTagName(startTag: SyntaxNode): string {
 function computeContext(node: SyntaxNode) {
   let elementDepth = 0;
   let inAttribute = false;
+  let insideSensitive = false;
 
   let current: SyntaxNode | null = node;
   while (current) {
     if (current.type === "element") {
       elementDepth += 1;
+      const startTag = current.namedChild(0);
+      if (startTag) {
+        const tagName = extractTagName(startTag);
+        if (tagName && WHITESPACE_SENSITIVE_ELEMENTS.has(tagName)) {
+          insideSensitive = true;
+        }
+      }
     }
     if (current.type === "attribute_value" || current.type === "attribute") {
       inAttribute = true;
@@ -332,7 +503,7 @@ function computeContext(node: SyntaxNode) {
     current = current.parent;
   }
 
-  return { elementDepth, inAttribute };
+  return { elementDepth, inAttribute, insideSensitive };
 }
 
 function findParentElementName(node: SyntaxNode): string {

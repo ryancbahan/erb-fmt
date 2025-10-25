@@ -1,30 +1,188 @@
 import fs from "fs";
 import path from "path";
-import type { FormatSegment, FormatterResult } from "./formatter/index.js";
+import type { FormatSegment, FormatterResult, FormatterConfigInput } from "./formatter/index.js";
 import { formatERB } from "./formatter/index.js";
 import type { ERBRegion, ParsedERB, RubyRegion } from "./parser.js";
 import { parseERB } from "./parser.js";
 import { printTree } from "./utils/printTree.js";
 
 const args = process.argv.slice(2);
-const showTree = args.includes("--tree");
-const showFormatted = args.includes("--format");
-const showSegments = args.includes("--segments");
-const fileArg = args.find((arg) => !arg.startsWith("-"));
 
-if (!fileArg) {
-  console.error("Usage: erbfmt [--tree] [--format] [--segments] <file.erb>");
+interface CliOptions {
+  showTree: boolean;
+  showFormatted: boolean;
+  showSegments: boolean;
+  file: string;
+  config: FormatterConfigInput | undefined;
+}
+
+function parseCliArguments(argv: string[]): CliOptions | null {
+  let showTree = false;
+  let showFormatted = false;
+  let showSegments = false;
+  const configFragments: string[] = [];
+  let file: string | undefined;
+
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i];
+    if (arg === "--tree") {
+      showTree = true;
+      continue;
+    }
+    if (arg === "--format") {
+      showFormatted = true;
+      continue;
+    }
+    if (arg === "--segments") {
+      showSegments = true;
+      continue;
+    }
+    if (arg === "--config") {
+      const next = argv[i + 1];
+      if (!next || next.startsWith("--")) {
+        console.error("error: --config requires a value");
+        return null;
+      }
+      configFragments.push(next);
+      i += 1;
+      continue;
+    }
+    if (arg.startsWith("--config=")) {
+      configFragments.push(arg.slice("--config=".length));
+      continue;
+    }
+    if (!arg.startsWith("-") && !file) {
+      file = arg;
+      continue;
+    }
+    console.error(`error: unrecognized argument ${arg}`);
+    return null;
+  }
+
+  if (!file) {
+    return null;
+  }
+
+  const config = configFragments.length > 0 ? parseConfigFragments(configFragments) : undefined;
+
+  return { showTree, showFormatted, showSegments, file, config };
+}
+
+function parseConfigFragments(fragments: string[]): FormatterConfigInput {
+  const result: Record<string, unknown> = {};
+  fragments.forEach((fragment) => {
+    const entries = splitConfigEntries(fragment);
+    entries.forEach(({ key, value }) => {
+      setNestedConfigValue(result, key, coerceValue(value));
+    });
+  });
+  return result as FormatterConfigInput;
+}
+
+function splitConfigEntries(fragment: string): Array<{ key: string; value: string }> {
+  const entries: Array<{ key: string; value: string }> = [];
+  let current = "";
+  let inSingle = false;
+  let inDouble = false;
+
+  const pushEntry = (raw: string) => {
+    if (!raw.trim()) return;
+    const eqIndex = raw.indexOf("=");
+    if (eqIndex === -1) {
+      entries.push({ key: raw.trim(), value: "true" });
+      return;
+    }
+    const key = raw.slice(0, eqIndex).trim();
+    const value = raw.slice(eqIndex + 1).trim();
+    if (!key) return;
+    entries.push({ key, value });
+  };
+
+  for (let i = 0; i < fragment.length; i += 1) {
+    const char = fragment[i];
+    if (char === "'" && !inDouble) {
+      inSingle = !inSingle;
+      current += char;
+      continue;
+    }
+    if (char === '"' && !inSingle) {
+      inDouble = !inDouble;
+      current += char;
+      continue;
+    }
+    if (char === "," && !inSingle && !inDouble) {
+      pushEntry(current);
+      current = "";
+      continue;
+    }
+    current += char;
+  }
+
+  if (current) {
+    pushEntry(current);
+  }
+  return entries;
+}
+
+function coerceValue(raw: string): unknown {
+  const trimmed = raw.trim();
+  if (!trimmed) return trimmed;
+
+  if ((trimmed.startsWith("{") && trimmed.endsWith("}")) || (trimmed.startsWith("[") && trimmed.endsWith("]"))) {
+    try {
+      return JSON.parse(trimmed);
+    } catch {
+      // fall through to plain string handling
+    }
+  }
+
+  if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+    return trimmed.slice(1, -1);
+  }
+
+  if (/^-?\d+(\.\d+)?$/.test(trimmed)) {
+    return Number(trimmed);
+  }
+
+  if (trimmed === "true") return true;
+  if (trimmed === "false") return false;
+  if (trimmed === "null") return null;
+
+  return trimmed;
+}
+
+function setNestedConfigValue(target: Record<string, unknown>, path: string, value: unknown): void {
+  const parts = path.split(".").filter(Boolean);
+  if (parts.length === 0) return;
+  let current: Record<string, unknown> = target;
+  for (let i = 0; i < parts.length - 1; i += 1) {
+    const key = parts[i];
+    const existing = current[key];
+    if (typeof existing === "object" && existing !== null && !Array.isArray(existing)) {
+      current = existing as Record<string, unknown>;
+    } else {
+      const next: Record<string, unknown> = {};
+      current[key] = next;
+      current = next;
+    }
+  }
+  current[parts[parts.length - 1]] = value;
+}
+
+const options = parseCliArguments(args);
+if (!options) {
+  console.error("Usage: erbfmt [--tree] [--format] [--segments] [--config <expr>] <file.erb>");
   process.exit(1);
 }
 
-const filePath = path.resolve(fileArg);
+const filePath = path.resolve(options.file);
 const source = fs.readFileSync(filePath, "utf8");
 const parsed = parseERB(source);
-const formatterResult = formatERB(parsed);
+const formatterResult = formatERB(parsed, options.config);
 
 printRegions(parsed.regions);
 
-if (showSegments) {
+if (options.showSegments) {
   printSegments(formatterResult.segments);
 }
 
@@ -32,11 +190,11 @@ if (formatterResult.diagnostics.length > 0) {
   printDiagnostics(formatterResult.diagnostics);
 }
 
-if (showFormatted) {
+if (options.showFormatted) {
   printFormattedOutput(formatterResult.output);
 }
 
-if (showTree) {
+if (options.showTree) {
   console.log("\n=== Syntax Tree ===");
   console.log(printTree(parsed.tree, source));
 }

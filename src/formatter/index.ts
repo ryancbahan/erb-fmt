@@ -116,9 +116,12 @@ export function formatERB(parsed: ParsedERB, givenConfig?: FormatterConfigInput)
   const htmlAnalysis = analyzePlaceholderDocument(placeholderDocument);
   const htmlPrint = renderHtmlDocument(
     htmlAnalysis,
+    placeholderDocument.html,
     config.indentation.size,
     config.indentation.style,
     config.html.collapseWhitespace,
+    config.html.lineWidth,
+    config.html.attributeWrapping,
   );
 
   const { output, segments, rubyDiagnostics } = composeOutput(
@@ -381,6 +384,7 @@ function composeOutput(
 
   let lastIndex = 0;
   let currentRubyIndent = 0;
+  let lastSensitive = false;
   let match: RegExpExecArray | null;
 
   while ((match = placeholderPattern.exec(htmlWithPlaceholders)) !== null) {
@@ -391,15 +395,18 @@ function composeOutput(
     if (start > lastIndex) {
       let htmlText = htmlWithPlaceholders.slice(lastIndex, start);
       if (htmlText) {
-        const trailingMatch = htmlText.match(/[ \t]+$/);
-        if (trailingMatch) {
-          const startIdx = trailingMatch.index ?? 0;
-          const preceding = htmlText.slice(0, startIdx);
-          if (startIdx === 0 || preceding.endsWith("\n")) {
-            htmlText = htmlText.slice(0, startIdx);
+        const isSensitiveHtml = (lastSensitive || info?.sensitive) ?? false;
+        if (!isSensitiveHtml) {
+          const trailingMatch = htmlText.match(/[ \t]+$/);
+          if (trailingMatch) {
+            const startIdx = trailingMatch.index ?? 0;
+            const preceding = htmlText.slice(0, startIdx);
+            if (startIdx === 0 || preceding.endsWith("\n")) {
+              htmlText = htmlText.slice(0, startIdx);
+            }
           }
         }
-        htmlText = adjustHtmlSegment(htmlText, currentRubyIndent, indentUnit);
+        htmlText = adjustHtmlSegment(htmlText, currentRubyIndent, indentUnit, isSensitiveHtml);
         segments.push({
           index: segments.length,
           kind: "html",
@@ -432,12 +439,13 @@ function composeOutput(
     });
 
     lastIndex = placeholderPattern.lastIndex;
+    lastSensitive = info.sensitive;
   }
 
   if (lastIndex < htmlWithPlaceholders.length) {
     const tail = htmlWithPlaceholders.slice(lastIndex);
     if (tail) {
-      const adjustedTail = adjustHtmlSegment(tail, currentRubyIndent, indentUnit);
+      const adjustedTail = adjustHtmlSegment(tail, currentRubyIndent, indentUnit, lastSensitive);
       segments.push({
         index: segments.length,
         kind: "html",
@@ -483,6 +491,15 @@ function formatRubyPlaceholderSegment(
     };
   }
 
+  if (info.sensitive) {
+    return {
+      formatted: region.text,
+      indentationLevel: currentRubyIndent,
+      mode: "ruby-normalized",
+      nextIndent: currentRubyIndent,
+    };
+  }
+
   const normalized = normalizeSegmentText(region.text, config);
   const effects = region.flavor === "logic" ? analyzeRubyIndentation(region) : ZERO_INDENTATION_EFFECT;
   const containerIndentContribution = info.indentationLevel;
@@ -505,8 +522,8 @@ function formatRubyPlaceholderSegment(
   };
 }
 
-function adjustHtmlSegment(text: string, rubyIndentLevel: number, indentUnit: string): string {
-  if (rubyIndentLevel <= 0) {
+function adjustHtmlSegment(text: string, rubyIndentLevel: number, indentUnit: string, sensitive: boolean): string {
+  if (sensitive || rubyIndentLevel <= 0) {
     return text;
   }
   const indentAddition = indentUnit.repeat(rubyIndentLevel);
