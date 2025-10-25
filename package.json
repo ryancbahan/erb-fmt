@@ -1,0 +1,22 @@
+{
+  "name": "erb-formatter",
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "tsx src/index.ts examples/sample.erb",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "tree-sitter": "^0.25.0",
+    "tree-sitter-embedded-template": "0.25.0",
+    "tree-sitter-html": "^0.23.0",
+    "tree-sitter-ruby": "^0.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.10",
+    "tsx": "^4.0.0",
+    "typescript": "^5.5.0",
+    "vitest": "^2.0.0"
+  }
+}
