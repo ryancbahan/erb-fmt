@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 import fs from "fs";
 import path from "path";
-import fg from "fast-glob";
 import { pathToFileURL } from "url";
 import type {
   FormatSegment,
@@ -270,47 +269,39 @@ function resolveTargetFiles(
     const trimmed = target.trim();
     if (!trimmed) return;
 
-    const hasGlob = isGlobPattern(trimmed);
-    if (!hasGlob) {
-      const absolute = path.resolve(trimmed);
-      try {
-        const stats = fs.statSync(absolute);
-        if (stats.isDirectory()) {
-          const matches = fg.sync("**/*.erb", {
-            cwd: absolute,
-            absolute: true,
-            followSymbolicLinks: true,
-            dot: false,
-          });
-          if (matches.length === 0) {
-            missing.push(trimmed);
-          }
-          matches.forEach((match) => files.add(path.resolve(match)));
-          return;
-        }
-        if (stats.isFile()) {
-          files.add(absolute);
-          return;
-        }
-      } catch {
-        // fall through to glob handling
+    if (isGlobPattern(trimmed)) {
+      const matches = expandGlobPattern(trimmed);
+      if (matches.length === 0) {
+        missing.push(trimmed);
+      } else {
+        matches.forEach((match) => files.add(match));
       }
+      return;
     }
 
-    const matches = fg.sync(trimmed, {
-      cwd: process.cwd(),
-      absolute: true,
-      onlyFiles: true,
-      followSymbolicLinks: true,
-      dot: false,
-    });
-
-    if (matches.length === 0) {
+    const resolved = path.resolve(trimmed);
+    const stats = safeStat(resolved);
+    if (!stats) {
       missing.push(trimmed);
       return;
     }
 
-    matches.forEach((match) => files.add(path.resolve(match)));
+    if (stats.isDirectory()) {
+      const dirMatches = collectErbFiles(resolved);
+      if (dirMatches.length === 0) {
+        missing.push(trimmed);
+      } else {
+        dirMatches.forEach((file) => files.add(file));
+      }
+      return;
+    }
+
+    if (stats.isFile() && isErbFile(resolved)) {
+      files.add(resolved);
+      return;
+    }
+
+    missing.push(trimmed);
   });
 
   const ordered = Array.from(files).sort((a, b) => a.localeCompare(b));
@@ -318,7 +309,175 @@ function resolveTargetFiles(
 }
 
 function isGlobPattern(value: string): boolean {
-  return /[*?[\]{}()!]/.test(value);
+  return value.includes("*") || value.includes("?") || value.includes("[");
+}
+
+function expandGlobPattern(pattern: string): string[] {
+  const resolvedPattern = path.resolve(process.cwd(), pattern);
+  const relativePattern = path.relative(process.cwd(), resolvedPattern);
+  const segments = splitPatternSegments(relativePattern);
+  const firstGlobIndex = segments.findIndex(segmentHasGlob);
+
+  if (firstGlobIndex === -1) {
+    const candidate = path.resolve(process.cwd(), relativePattern);
+    const stats = safeStat(candidate);
+    if (stats?.isDirectory()) {
+      return collectErbFiles(candidate);
+    }
+    if (stats?.isFile() && isErbFile(candidate)) {
+      return [candidate];
+    }
+    return [];
+  }
+
+  const baseSegments = segments.slice(0, firstGlobIndex);
+  const patternSegments = segments.slice(firstGlobIndex);
+  const baseDir = path.resolve(process.cwd(), path.join(...baseSegments));
+
+  const baseStats = safeStat(baseDir);
+  if (!baseStats || !baseStats.isDirectory()) {
+    return [];
+  }
+
+  const results = new Set<string>();
+  matchSegments(baseDir, patternSegments, 0, results);
+  return Array.from(results);
+}
+
+function collectErbFiles(directory: string): string[] {
+  const results: string[] = [];
+  const queue: string[] = [directory];
+
+  while (queue.length > 0) {
+    const current = queue.pop();
+    if (!current) continue;
+    const entries = safeReadDir(current);
+    entries.forEach((entry) => {
+      if (entry.name === "." || entry.name === "..") return;
+      const entryPath = path.join(current, entry.name);
+      if (entry.isDirectory()) {
+        queue.push(entryPath);
+      } else if (entry.isFile() && isErbFile(entryPath)) {
+        results.push(entryPath);
+      }
+    });
+  }
+
+  return results;
+}
+
+function matchSegments(
+  currentPath: string,
+  segments: string[],
+  index: number,
+  results: Set<string>,
+): void {
+  if (index >= segments.length) {
+    const stats = safeStat(currentPath);
+    if (stats?.isFile() && isErbFile(currentPath)) {
+      results.add(currentPath);
+    }
+    return;
+  }
+
+  const segment = segments[index];
+
+  if (segment === "**") {
+    matchSegments(currentPath, segments, index + 1, results);
+    const stats = safeStat(currentPath);
+    if (!stats || !stats.isDirectory()) return;
+    const entries = safeReadDir(currentPath);
+    entries.forEach((entry) => {
+      if (entry.name === "." || entry.name === "..") return;
+      const entryPath = path.join(currentPath, entry.name);
+      if (entry.isDirectory()) {
+        matchSegments(entryPath, segments, index, results);
+      } else if (entry.isFile() && index + 1 === segments.length) {
+        if (isErbFile(entryPath)) {
+          results.add(entryPath);
+        }
+      }
+    });
+    return;
+  }
+
+  const stats = safeStat(currentPath);
+  if (!stats || !stats.isDirectory()) return;
+
+  const matcher = segmentToRegExp(segment);
+  const entries = safeReadDir(currentPath);
+  entries.forEach((entry) => {
+    if (entry.name === "." || entry.name === "..") return;
+    if (!matcher.test(entry.name)) return;
+    const entryPath = path.join(currentPath, entry.name);
+    const entryStats = safeStat(entryPath);
+    if (!entryStats) return;
+    if (entryStats.isDirectory()) {
+      matchSegments(entryPath, segments, index + 1, results);
+    } else if (
+      entryStats.isFile() &&
+      index === segments.length - 1 &&
+      isErbFile(entryPath)
+    ) {
+      results.add(entryPath);
+    }
+  });
+}
+
+function splitPatternSegments(pattern: string): string[] {
+  return pattern.split(/[\\/]+/).filter((segment) => segment.length > 0);
+}
+
+function segmentHasGlob(segment: string): boolean {
+  return (
+    segment === "**" ||
+    segment.includes("*") ||
+    segment.includes("?") ||
+    segment.includes("[")
+  );
+}
+
+function segmentToRegExp(segment: string): RegExp {
+  if (segment === "**") {
+    return /.*/;
+  }
+  let pattern = "^";
+  for (let i = 0; i < segment.length; i += 1) {
+    const char = segment[i];
+    if (char === "*") {
+      pattern += "[^/\\\\]*";
+    } else if (char === "?") {
+      pattern += "[^/\\\\]";
+    } else {
+      pattern += escapeRegExp(char);
+    }
+  }
+  pattern += "$";
+  return new RegExp(pattern);
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[|\\{}()[\]^$+*?.]/g, "\\$&");
+}
+
+function safeStat(filePath: string): fs.Stats | null {
+  try {
+    return fs.statSync(filePath);
+  } catch {
+    return null;
+  }
+}
+
+function safeReadDir(dirPath: string): fs.Dirent[] {
+  try {
+    return fs.readdirSync(dirPath, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+}
+
+function isErbFile(filePath: string): boolean {
+  return filePath.toLowerCase().endsWith(".erb");
 }
 
 function formatDisplayPath(absolutePath: string): string {

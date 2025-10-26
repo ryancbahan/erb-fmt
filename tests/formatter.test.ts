@@ -115,7 +115,7 @@ describe("formatERB", () => {
     const result = formatERB(parseERB(snippet));
 
     expect(result.output).toBe(
-      `<% if condition %>\n  <span>Body</span>\n<% end # comment %>\n`,
+      `<% if condition %>\n  <span>Body</span>\n<% end  # comment %>\n`,
     );
 
     const logicSegments = result.segments.filter(isLogicSegment);

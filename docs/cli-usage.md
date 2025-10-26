@@ -48,6 +48,14 @@ erb-formatter --config-file examples/config/erbfmt.json --write examples/dashboa
 ```
 Multiple `--config-file` flags are merged in the order provided, and any `--config` inline overrides apply last.
 
+### Ruby formatting
+- Ruby regions (`<% ... %>`) are formatted heuristically by default. Set
+  `"ruby": { "format": "none" }` in your config to opt out.
+- Use `ruby.lineWidth` (falls back to `html.lineWidth`) to control when helper
+  arguments are wrapped onto continuation lines.
+- Output directives (`<%=`) remain single-line unless you explicitly wrap them
+  yourself, so attribute values stay compact.
+
 ## package.json Scripts
 Add a script to run the formatter over your project:
 ```json

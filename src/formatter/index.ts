@@ -10,7 +10,7 @@ import {
   renderHtmlDocument,
   type PlaceholderPrintInfo,
 } from "./htmlDocument.js";
-import { renderRubyRegion } from "./rubyWhitespace.js";
+import { renderRubyRegion } from "./rubyFormatter.js";
 
 export interface FormatterConfig {
   indentation: {
@@ -43,6 +43,10 @@ export interface FormatterConfig {
     finalNewline: "preserve" | "ensure" | "strip";
     /** Preferred shape for inline guard clauses (`if`/`unless`). */
     inlineGuardStyle: "preserve" | "compact" | "expanded";
+    /** Control Ruby region formatting. */
+    format: "none" | "heuristic";
+    /** Preferred line width for Ruby code (falls back to HTML line width). */
+    lineWidth: number | null;
   };
 }
 
@@ -106,6 +110,8 @@ export const DEFAULT_FORMATTER_CONFIG: FormatterConfig = {
     alignBlockEnds: true,
     finalNewline: "preserve",
     inlineGuardStyle: "preserve",
+    format: "heuristic",
+    lineWidth: null,
   },
 };
 
@@ -528,7 +534,7 @@ function formatRubyPlaceholderSegment(
   const { region } = info.entry;
 
   if (info.inline || info.inAttribute) {
-    const inlineText = renderRubyRegion(region);
+    const inlineText = renderRubyRegion(region, config);
     return {
       formatted: inlineText,
       indentationLevel: 0,
@@ -546,7 +552,7 @@ function formatRubyPlaceholderSegment(
     };
   }
 
-  const rendered = renderRubyRegion(region);
+  const rendered = renderRubyRegion(region, config);
   const normalized = normalizeSegmentText(rendered, config);
   const effects =
     region.flavor === "logic"
@@ -733,40 +739,107 @@ function applyIndentation(
   options: { indentFirstLine: boolean },
 ): string {
   if (!text) return text;
-  const indentUnit =
-    config.indentation.style === "tab"
-      ? "\t"
-      : " ".repeat(config.indentation.size);
-  const indent = indentUnit.repeat(level);
+  const indentSize = Math.max(1, config.indentation.size);
+  const indentStyle = config.indentation.style;
+  const baseIndent =
+    indentStyle === "tab" ? "\t".repeat(level) : " ".repeat(indentSize * level);
 
   const newlineRegex = /\r?\n/g;
+  const segments: Array<{ line: string; newline: string }> = [];
   let lastIndex = 0;
-  let lineIndex = 0;
-  let output = "";
-
   let match: RegExpExecArray | null;
   while ((match = newlineRegex.exec(text)) !== null) {
-    const line = text.slice(lastIndex, match.index);
-    output += formatLine(line, lineIndex === 0);
-    output += match[0];
+    segments.push({
+      line: text.slice(lastIndex, match.index),
+      newline: match[0],
+    });
     lastIndex = match.index + match[0].length;
-    lineIndex += 1;
+  }
+  segments.push({ line: text.slice(lastIndex), newline: "" });
+
+  const indentInfos = segments.map((segment) =>
+    analyzeLeadingIndent(segment.line, indentSize),
+  );
+
+  let minIndentWidth = Infinity;
+  indentInfos.forEach((info, index) => {
+    if (!info.hasContent) return;
+    if (index === 0 && !options.indentFirstLine) return;
+    minIndentWidth = Math.min(minIndentWidth, info.width);
+  });
+
+  if (!Number.isFinite(minIndentWidth)) {
+    minIndentWidth = 0;
   }
 
-  if (lastIndex < text.length) {
-    const line = text.slice(lastIndex);
-    output += formatLine(line, lineIndex === 0);
-  }
+  let result = "";
 
-  return output;
+  segments.forEach((segment, index) => {
+    const info = indentInfos[index];
 
-  function formatLine(line: string, isFirstLine: boolean): string {
-    if (!line) return "";
-    const trimmed = line.replace(/^[ \t]*/, "");
-    if (!trimmed) return "";
-    if (isFirstLine && !options.indentFirstLine) {
-      return trimmed;
+    let lineOut = "";
+
+    if (!info.hasContent) {
+      lineOut = "";
+    } else {
+      const remainderWidth = Math.max(0, info.width - minIndentWidth);
+      const remainder = indentWidthToString(
+        remainderWidth,
+        indentStyle,
+        indentSize,
+      );
+      const content = info.content;
+      if (index === 0 && !options.indentFirstLine) {
+        lineOut = remainder + content;
+      } else {
+        lineOut = baseIndent + remainder + content;
+      }
     }
-    return indent + trimmed;
+
+    result += lineOut + segment.newline;
+  });
+
+  return result;
+}
+
+function analyzeLeadingIndent(
+  line: string,
+  indentSize: number,
+): { width: number; content: string; hasContent: boolean } {
+  if (!line) {
+    return { width: 0, content: "", hasContent: false };
   }
+
+  let index = 0;
+  let width = 0;
+  while (index < line.length) {
+    const char = line[index];
+    if (char === " ") {
+      width += 1;
+      index += 1;
+    } else if (char === "\t") {
+      width += indentSize;
+      index += 1;
+    } else {
+      break;
+    }
+  }
+
+  const content = line.slice(index);
+  const hasContent = content.trim().length > 0;
+  return { width, content, hasContent };
+}
+
+function indentWidthToString(
+  width: number,
+  style: FormatterConfig["indentation"]["style"],
+  indentSize: number,
+): string {
+  if (width <= 0) return "";
+  if (style === "tab") {
+    const tabs = Math.floor(width / indentSize);
+    const spaces = width % indentSize;
+    return "\t".repeat(tabs) + " ".repeat(spaces);
+  }
+  return " ".repeat(width);
 }

@@ -29,7 +29,6 @@
     "perf": "npm run build --silent && node scripts/perf.mjs"
   },
   "dependencies": {
-    "fast-glob": "^3.3.2",
     "tree-sitter": "^0.25.0",
     "tree-sitter-embedded-template": "0.25.0",
     "tree-sitter-html": "^0.23.0",
