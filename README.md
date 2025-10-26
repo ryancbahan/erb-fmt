@@ -40,6 +40,42 @@ npx erbfmt --format --segments app/views/shared/**/*.erb
 - Combine recursive formatting with inline configuration overrides:  
   `npx erbfmt --write --config "indentation.size=4" app/components/**/*.erb`
 
+### Configuration Example
+You can supply a JSON file with `--config-file` (multiple files may be merged in
+order). The snippet below shows every available option:
+
+```json
+{
+  "indentation": {
+    "size": 2,
+    "style": "space",
+    "continuation": 2
+  },
+  "newline": "lf",
+  "whitespace": {
+    "trimTrailingWhitespace": true,
+    "ensureFinalNewline": true
+  },
+  "html": {
+    "collapseWhitespace": "conservative",
+    "lineWidth": 100,
+    "attributeWrapping": "auto"
+  },
+  "ruby": {
+    "format": "heuristic",
+    "lineWidth": 100
+  }
+}
+```
+
+Inline overrides apply last, e.g.:
+
+```sh
+erb-formatter --config-file config/erb.json --config "indentation.size=4,ruby.format='none'" app/views/**/*.erb
+```
+
+See `docs/config-reference.md` for a detailed description of each field.
+
 ## Known Limitations & Future Work
 
 - **Placeholder HTML parse failures:** if the generated placeholder document
