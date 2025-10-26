@@ -1,0 +1,115 @@
+0 verbose cli /Users/ryanbahan/.nvm/versions/node/v22.17.1/bin/node /Users/ryanbahan/.nvm/versions/node/v22.17.1/bin/npm
+1 info using npm@10.9.2
+2 info using node@v22.17.1
+3 silly config load:file:/Users/ryanbahan/.nvm/versions/node/v22.17.1/lib/node_modules/npm/npmrc
+4 silly config load:file:/private/var/folders/lv/rngxywhs3wdfxc27v_m7h8wh0000gn/T/erb-install-npm-Yj1tJH/.npmrc
+5 silly config load:file:/Users/ryanbahan/.npmrc
+6 silly config load:file:/Users/ryanbahan/.nvm/versions/node/v22.17.1/etc/npmrc
+7 verbose title npm install /Users/ryanbahan/projects/erb-formatter/tmp/smoke-cache/pack/erb-formatter-0.0.1.tgz
+8 verbose argv "install" "/Users/ryanbahan/projects/erb-formatter/tmp/smoke-cache/pack/erb-formatter-0.0.1.tgz" "--ignore-scripts" "false" "--no-audit" "--no-fund"
+9 verbose logfile logs-max:10 dir:/Users/ryanbahan/projects/erb-formatter/tmp/smoke-cache/npm-cache/_logs/2025-10-26T02_32_20_085Z-
+10 verbose logfile /Users/ryanbahan/projects/erb-formatter/tmp/smoke-cache/npm-cache/_logs/2025-10-26T02_32_20_085Z-debug-0.log
+11 silly logfile start cleaning logs, removing 1 files
+12 silly packumentCache heap:4345298944 maxSize:1086324736 maxEntrySize:543162368
+13 silly logfile done cleaning log files
+14 silly idealTree buildDeps
+15 silly fetch manifest erb-formatter@file:../../../../../../../Users/ryanbahan/projects/erb-formatter/tmp/smoke-cache/pack/erb-formatter-0.0.1.tgz
+16 silly placeDep ROOT erb-formatter@0.0.1 OK for: erb-install-npm-yj1tjh@1.0.0 want: file:../../../../../../../Users/ryanbahan/projects/erb-formatter/tmp/smoke-cache/pack/erb-formatter-0.0.1.tgz
+17 silly fetch manifest tree-sitter@^0.25.0
+18 silly packumentCache full:https://registry.npmjs.org/tree-sitter cache-miss
+19 silly fetch manifest tree-sitter-embedded-template@0.25.0
+20 silly packumentCache full:https://registry.npmjs.org/tree-sitter-embedded-template cache-miss
+21 silly fetch manifest tree-sitter-html@^0.23.0
+22 silly packumentCache full:https://registry.npmjs.org/tree-sitter-html cache-miss
+23 silly fetch manifest tree-sitter-ruby@^0.23.0
+24 silly packumentCache full:https://registry.npmjs.org/tree-sitter-ruby cache-miss
+25 http fetch GET 200 https://registry.npmjs.org/tree-sitter 397ms (cache revalidated)
+26 silly packumentCache full:https://registry.npmjs.org/tree-sitter set size:435725 disposed:false
+27 http fetch GET 200 https://registry.npmjs.org/tree-sitter-html 586ms (cache revalidated)
+28 silly packumentCache full:https://registry.npmjs.org/tree-sitter-html set size:66276 disposed:false
+29 http fetch GET 200 https://registry.npmjs.org/tree-sitter-embedded-template 588ms (cache revalidated)
+30 silly packumentCache full:https://registry.npmjs.org/tree-sitter-embedded-template set size:40758 disposed:false
+31 http fetch GET 200 https://registry.npmjs.org/tree-sitter-ruby 599ms (cache revalidated)
+32 silly packumentCache full:https://registry.npmjs.org/tree-sitter-ruby set size:110481 disposed:false
+33 silly fetch manifest tree-sitter@^0.21.1
+34 silly packumentCache full:https://registry.npmjs.org/tree-sitter cache-hit
+35 silly placeDep ROOT tree-sitter@0.25.0 OK for: erb-formatter@0.0.1 want: ^0.25.0
+36 silly placeDep ROOT tree-sitter-embedded-template@0.25.0 OK for: erb-formatter@0.0.1 want: 0.25.0
+37 silly placeDep ROOT tree-sitter-html@0.23.2 OK for: erb-formatter@0.0.1 want: ^0.23.0
+38 silly placeDep ROOT tree-sitter-ruby@0.23.1 OK for: erb-formatter@0.0.1 want: ^0.23.0
+39 silly fetch manifest node-addon-api@^8.3.0
+40 silly packumentCache full:https://registry.npmjs.org/node-addon-api cache-miss
+41 silly fetch manifest node-gyp-build@^4.8.4
+42 silly packumentCache full:https://registry.npmjs.org/node-gyp-build cache-miss
+43 silly fetch manifest node-addon-api@^8.3.1
+44 silly packumentCache full:https://registry.npmjs.org/node-addon-api cache-miss
+45 silly fetch manifest node-gyp-build@^4.8.4
+46 silly packumentCache full:https://registry.npmjs.org/node-gyp-build cache-miss
+47 silly fetch manifest node-addon-api@^8.2.2
+48 silly packumentCache full:https://registry.npmjs.org/node-addon-api cache-miss
+49 silly fetch manifest node-gyp-build@^4.8.2
+50 silly packumentCache full:https://registry.npmjs.org/node-gyp-build cache-miss
+51 silly fetch manifest node-addon-api@^8.2.2
+52 silly packumentCache full:https://registry.npmjs.org/node-addon-api cache-miss
+53 http fetch GET 200 https://registry.npmjs.org/node-addon-api 75ms (cache revalidated)
+54 silly packumentCache full:https://registry.npmjs.org/node-addon-api set size:328136 disposed:false
+55 silly fetch manifest node-gyp-build@^4.8.2
+56 silly packumentCache full:https://registry.npmjs.org/node-gyp-build cache-miss
+57 http fetch GET 200 https://registry.npmjs.org/node-gyp-build 79ms (cache revalidated)
+58 silly packumentCache full:https://registry.npmjs.org/node-gyp-build set size:84545 disposed:false
+59 http fetch GET 200 https://registry.npmjs.org/node-addon-api 82ms (cache revalidated)
+60 silly packumentCache full:https://registry.npmjs.org/node-addon-api set size:328136 disposed:false
+61 silly packumentCache full:https://registry.npmjs.org/node-addon-api dispose
+62 http fetch GET 200 https://registry.npmjs.org/node-gyp-build 85ms (cache revalidated)
+63 silly packumentCache full:https://registry.npmjs.org/node-gyp-build set size:84545 disposed:false
+64 silly packumentCache full:https://registry.npmjs.org/node-gyp-build dispose
+65 http cache https://registry.npmjs.org/node-gyp-build 8ms (cache hit)
+66 silly packumentCache full:https://registry.npmjs.org/node-gyp-build set size:84545 disposed:true
+67 silly packumentCache full:https://registry.npmjs.org/node-gyp-build dispose
+68 http fetch GET 200 https://registry.npmjs.org/node-addon-api 286ms (cache revalidated)
+69 silly packumentCache full:https://registry.npmjs.org/node-addon-api set size:328136 disposed:true
+70 silly packumentCache full:https://registry.npmjs.org/node-addon-api dispose
+71 http fetch GET 200 https://registry.npmjs.org/node-gyp-build 364ms (cache revalidated)
+72 silly packumentCache full:https://registry.npmjs.org/node-gyp-build set size:84545 disposed:true
+73 silly packumentCache full:https://registry.npmjs.org/node-gyp-build dispose
+74 http fetch GET 200 https://registry.npmjs.org/node-addon-api 370ms (cache revalidated)
+75 silly packumentCache full:https://registry.npmjs.org/node-addon-api set size:328136 disposed:true
+76 silly packumentCache full:https://registry.npmjs.org/node-addon-api dispose
+77 silly placeDep ROOT node-addon-api@8.5.0 OK for: tree-sitter@0.25.0 want: ^8.3.0
+78 silly placeDep ROOT node-gyp-build@4.8.4 OK for: tree-sitter@0.25.0 want: ^4.8.4
+79 silly placeDep ROOT tree-sitter@0.21.1 REPLACE for: tree-sitter-html@0.23.2 want: ^0.21.1
+80 silly placeDep node_modules/erb-formatter tree-sitter@0.25.0 OK for: erb-formatter@0.0.1 want: ^0.25.0
+81 silly placeDep node_modules/erb-formatter tree-sitter-embedded-template@0.25.0 OK for: erb-formatter@0.0.1 want: 0.25.0
+82 silly reify moves {}
+83 http cache node-addon-api@https://registry.npmjs.org/node-addon-api/-/node-addon-api-8.5.0.tgz 0ms (cache hit)
+84 http cache tree-sitter@https://registry.npmjs.org/tree-sitter/-/tree-sitter-0.21.1.tgz 0ms (cache hit)
+85 http cache tree-sitter-ruby@https://registry.npmjs.org/tree-sitter-ruby/-/tree-sitter-ruby-0.23.1.tgz 0ms (cache hit)
+86 http cache tree-sitter-html@https://registry.npmjs.org/tree-sitter-html/-/tree-sitter-html-0.23.2.tgz 0ms (cache hit)
+87 http cache erb-formatter@file:/Users/ryanbahan/projects/erb-formatter/tmp/smoke-cache/pack/erb-formatter-0.0.1.tgz 0ms (cache hit)
+88 http cache tree-sitter-embedded-template@https://registry.npmjs.org/tree-sitter-embedded-template/-/tree-sitter-embedded-template-0.25.0.tgz 0ms (cache hit)
+89 http cache tree-sitter@https://registry.npmjs.org/tree-sitter/-/tree-sitter-0.25.0.tgz 0ms (cache hit)
+90 http cache node-gyp-build@https://registry.npmjs.org/node-gyp-build/-/node-gyp-build-4.8.4.tgz 0ms (cache hit)
+91 info run tree-sitter@0.21.1 install node_modules/tree-sitter node-gyp-build
+92 info run tree-sitter-html@0.23.2 install node_modules/tree-sitter-html node-gyp-build
+93 info run tree-sitter-ruby@0.23.1 install node_modules/tree-sitter-ruby node-gyp-build
+94 info run tree-sitter@0.25.0 install node_modules/erb-formatter/node_modules/tree-sitter node-gyp-build
+95 info run tree-sitter-embedded-template@0.25.0 install node_modules/erb-formatter/node_modules/tree-sitter-embedded-template node-gyp-build
+96 info run tree-sitter-ruby@0.23.1 install { code: 0, signal: null }
+97 info run tree-sitter@0.21.1 install { code: 0, signal: null }
+98 info run tree-sitter-embedded-template@0.25.0 install { code: 0, signal: null }
+99 info run tree-sitter-html@0.23.2 install { code: 0, signal: null }
+100 info run tree-sitter@0.25.0 install { code: 0, signal: null }
+101 silly ADD node_modules/tree-sitter
+102 silly ADD node_modules/node-gyp-build
+103 silly ADD node_modules/node-addon-api
+104 silly ADD node_modules/tree-sitter-ruby
+105 silly ADD node_modules/tree-sitter-html
+106 silly ADD node_modules/erb-formatter
+107 silly ADD node_modules/erb-formatter/node_modules/tree-sitter-embedded-template
+108 silly ADD node_modules/erb-formatter/node_modules/tree-sitter
+109 verbose cwd /private/var/folders/lv/rngxywhs3wdfxc27v_m7h8wh0000gn/T/erb-install-npm-Yj1tJH
+110 verbose os Darwin 23.6.0
+111 verbose node v22.17.1
+112 verbose npm  v10.9.2
+113 verbose exit 0
+114 info ok

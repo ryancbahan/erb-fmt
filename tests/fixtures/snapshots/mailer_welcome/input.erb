@@ -1,0 +1,64 @@
+<% content_for :title do %>Welcome, <%= @user.first_name %>!<% end %>
+
+<table width="100%" cellpadding="0" cellspacing="0" class="email" style="font-family: 'Helvetica Neue', Arial, sans-serif;">
+<tr>
+<td class="header" bgcolor="#111827">
+<img src="<%= image_url("logo.png") %>" width="120" height="36" alt="Acme" style="display:block;margin:0 auto;">
+</td>
+</tr>
+<tr>
+<td class="hero" bgcolor="#1f2937">
+<h1 style="color:#f9fafb;font-size:28px;font-weight:bold;margin:0 0 16px;">Welcome to Acme Analytics</h1>
+<p style="color:#e5e7eb;font-size:16px;line-height:1.6;margin:0 0 24px;">Hi <%= @user.first_name %>, we're thrilled to have you. Here's a quick overview of your account.</p>
+<table class="stats" width="100%" cellpadding="0" cellspacing="0">
+<tr>
+<td width="33%" style="color:#f3f4f6;">
+<strong style="display:block;font-size:18px;"><%= number_with_delimiter(@user.accounts.count) %></strong>
+Connected Accounts
+</td>
+<td width="33%" style="color:#f3f4f6;">
+<strong style="display:block;font-size:18px;"><%= number_to_percentage(@user.weekly_growth, precision: 1) %></strong>
+Weekly Growth
+</td>
+<td width="33%" style="color:#f3f4f6;">
+<strong style="display:block;font-size:18px;"><%= @user.plan_name %></strong>
+Current Plan
+</td>
+</tr>
+</table>
+<%= link_to "Visit your dashboard", dashboard_url(token: @user.access_token), style: "display:inline-block;padding:12px 24px;background:#3b82f6;color:#fff;font-weight:600;text-decoration:none;border-radius:6px;" %>
+</td>
+</tr>
+<tr>
+<td class="body" bgcolor="#f9fafb" style="color:#111827;font-size:16px;line-height:1.6;">
+<p>Over the next week, we'll help you connect data sources and explore key insights. Here's what to expect:</p>
+<ol>
+<li>Daily tips delivered straight to your inbox.</li>
+<li>A personalised onboarding session with <%= @coach.name %>.</li>
+<li>Access to our expert community for strategy feedback.</li>
+</ol>
+<% if @resources.any? %>
+<h2 style="font-size:20px;font-weight:600;margin-top:32px;">Resources picked for you</h2>
+<ul>
+<% @resources.each do |resource| %>
+<li>
+<%= link_to resource.title, resource.url, style: "color:#2563eb;font-weight:500;" %>
+<p style="margin:4px 0 16px;color:#4b5563;"><%= truncate(resource.summary, length: 120) %></p>
+</li>
+<% end %>
+</ul>
+<% end %>
+<p>If you have questions, just reply to this email or reach out to <%= mail_to support_email, support_email, subject: "Welcome help" %>.</p>
+</td>
+</tr>
+<tr>
+<td class="footer" bgcolor="#111827" style="color:#9ca3af;font-size:12px;text-align:center;padding:16px;">
+© <%= Time.current.year %> Acme Analytics ·
+<%= link_to "Privacy Policy", privacy_url, style: "color:#60a5fa;" %> ·
+<%= link_to "Manage Notifications", notifications_url(@user), style: "color:#60a5fa;" %>
+<% if @user.digest? %>
+<span style="display:block;margin-top:8px;">You're receiving this because you opted in to weekly digests.</span>
+<% end %>
+</td>
+</tr>
+</table>

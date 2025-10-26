@@ -1,0 +1,37 @@
+<nav class="global-nav" data-theme="<%= current_theme %>">
+  <div class="logo">
+    <%= link_to root_path, class: "brand", data: { controller: "hover-intent", action: "mouseenter->hover-intent#enter mouseleave->hover-intent#leave" } do %>
+    <span class="brand-mark"><%= render "shared/brand_mark" %></span>
+    <span class="brand-name"><%= app_name %></span>
+    <% end %>
+  </div>
+  <div class="search"><%= form_with url: search_path, method: :get, class: "search-form", data: { turbo_frame: "search_results" } do |form| %><%= form.search_field :query, placeholder: "Search projects, users, reports…", value: params[:query], data: { controller: "autosubmit", autosubmit_delay_value: 200 }, autocomplete: "off" %><% end %></div>
+  <ul class="nav-links">
+    <% navigation_links.each do |link| %>
+      <li class="<%= "active" if current_page?(link[:path]) %>" data-id="<%= link[:id] %>">
+        <%= link_to link[:label], link[:path], class: "nav-link", data: { turbo_frame: link[:frame] || "_top" } %>
+        <% if link[:badge].present? %>
+          <span class="badge <%= link[:badge][:variant] %>"><%= link[:badge][:text] %></span>
+        <% end %>
+      </li>
+    <% end %>
+  </ul>
+  <div class="account">
+    <% if current_user %>
+      <details class="user-menu" data-controller="dropdown">
+        <summary>
+          <%= image_tag avatar_url(current_user), size: "32x32", alt: current_user.name, class: "avatar" %>
+          <span class="name"><%= current_user.first_name %></span>
+        </summary>
+        <ul>
+          <li><%= link_to "Profile", profile_path %></li>
+          <li><%= link_to "Settings", settings_path %></li>
+          <li><%= button_to "Sign out", sign_out_path, method: :delete, data: { turbo: false, confirm: "Sign out?" } %></li>
+        </ul>
+      </details>
+    <% else %>
+      <%= link_to "Sign in", new_session_path, class: "btn btn-primary" %>
+      <%= link_to "Create account", new_registration_path, class: "btn btn-secondary" %>
+    <% end %>
+  </div>
+</nav>

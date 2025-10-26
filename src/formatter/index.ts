@@ -1,11 +1,16 @@
 import type { Tree, SyntaxNode } from "tree-sitter";
 import type { ERBRegion, ParsedERB, RubyRegion } from "../parser.js";
-import { buildPlaceholderDocument, PLACEHOLDER_PREFIX, PLACEHOLDER_SUFFIX } from "./placeholders.js";
+import {
+  buildPlaceholderDocument,
+  PLACEHOLDER_PREFIX,
+  PLACEHOLDER_SUFFIX,
+} from "./placeholders.js";
 import {
   analyzePlaceholderDocument,
   renderHtmlDocument,
   type PlaceholderPrintInfo,
 } from "./htmlDocument.js";
+import { renderRubyRegion } from "./rubyWhitespace.js";
 
 export interface FormatterConfig {
   indentation: {
@@ -109,7 +114,10 @@ export const DEFAULT_FORMATTER_CONFIG: FormatterConfig = {
  * preserves the original content while establishing the pipeline that future
  * normalization logic will plug into.
  */
-export function formatERB(parsed: ParsedERB, givenConfig?: FormatterConfigInput): FormatterResult {
+export function formatERB(
+  parsed: ParsedERB,
+  givenConfig?: FormatterConfigInput,
+): FormatterResult {
   const config = mergeConfig(DEFAULT_FORMATTER_CONFIG, givenConfig);
 
   const placeholderDocument = buildPlaceholderDocument(parsed.regions);
@@ -153,7 +161,7 @@ export function formatERB(parsed: ParsedERB, givenConfig?: FormatterConfigInput)
   };
 }
 
-type RecursivePartial<T> = {
+type RecursivePartial<T,> = {
   [K in keyof T]?: T[K] extends Record<string, unknown>
     ? RecursivePartial<T[K]>
     : T[K];
@@ -165,7 +173,10 @@ function mergeConfig(
 ): FormatterConfig {
   const baseline = deepClone(defaults);
   if (!override) return baseline;
-  deepMergeInto(baseline as unknown as Record<string, unknown>, override as Record<string, unknown>);
+  deepMergeInto(
+    baseline as unknown as Record<string, unknown>,
+    override as Record<string, unknown>,
+  );
   return baseline;
 }
 
@@ -200,10 +211,15 @@ function formatHtmlSegment(
     normalized = collapseBlankLines(normalized, config.html.collapseWhitespace);
   }
 
-  return applyIndentation(normalized, indentationLevel, config, { indentFirstLine: false });
+  return applyIndentation(normalized, indentationLevel, config, {
+    indentFirstLine: false,
+  });
 }
 
-function ensureFinalNewline(segments: FormatSegment[], config: FormatterConfig): void {
+function ensureFinalNewline(
+  segments: FormatSegment[],
+  config: FormatterConfig,
+): void {
   if (!config.whitespace.ensureFinalNewline || segments.length === 0) {
     return;
   }
@@ -220,7 +236,11 @@ function ensureFinalNewline(segments: FormatSegment[], config: FormatterConfig):
 
   if (trailingMatch) {
     const trailing = trailingMatch[0];
-    if (trailing === eol && trailingMatch.index !== undefined && trailingMatch.index + trailing.length === last.formatted.length) {
+    if (
+      trailing === eol &&
+      trailingMatch.index !== undefined &&
+      trailingMatch.index + trailing.length === last.formatted.length
+    ) {
       return;
     }
     const trimmed = last.formatted.slice(0, -trailing.length);
@@ -233,11 +253,16 @@ function ensureFinalNewline(segments: FormatSegment[], config: FormatterConfig):
   }
 }
 
-function resolveLineEnding(segments: FormatSegment[], config: FormatterConfig): string {
+function resolveLineEnding(
+  segments: FormatSegment[],
+  config: FormatterConfig,
+): string {
   if (config.newline === "lf") return "\n";
   if (config.newline === "crlf") return "\r\n";
 
-  const hasCRLF = segments.some((segment) => segment.formatted.includes("\r\n"));
+  const hasCRLF = segments.some((segment) =>
+    segment.formatted.includes("\r\n"),
+  );
   return hasCRLF ? "\r\n" : "\n";
 }
 
@@ -379,8 +404,14 @@ function composeOutput(
 
   const segments: FormatSegment[] = [];
   const diagnostics: FormatterDiagnostic[] = [];
-  const placeholderPattern = new RegExp(`${PLACEHOLDER_PREFIX}(\\d+)${PLACEHOLDER_SUFFIX}`, "g");
-  const indentUnit = config.indentation.style === "tab" ? "\t" : " ".repeat(config.indentation.size);
+  const placeholderPattern = new RegExp(
+    `${PLACEHOLDER_PREFIX}(\\d+)${PLACEHOLDER_SUFFIX}`,
+    "g",
+  );
+  const indentUnit =
+    config.indentation.style === "tab"
+      ? "\t"
+      : " ".repeat(config.indentation.size);
 
   let lastIndex = 0;
   let currentRubyIndent = 0;
@@ -406,7 +437,12 @@ function composeOutput(
             }
           }
         }
-        htmlText = adjustHtmlSegment(htmlText, currentRubyIndent, indentUnit, isSensitiveHtml);
+        htmlText = adjustHtmlSegment(
+          htmlText,
+          currentRubyIndent,
+          indentUnit,
+          isSensitiveHtml,
+        );
         segments.push({
           index: segments.length,
           kind: "html",
@@ -427,7 +463,12 @@ function composeOutput(
       continue;
     }
 
-    const rubyResult = formatRubyPlaceholderSegment(info, currentRubyIndent, config, indentUnit);
+    const rubyResult = formatRubyPlaceholderSegment(
+      info,
+      currentRubyIndent,
+      config,
+      indentUnit,
+    );
     currentRubyIndent = rubyResult.nextIndent;
     segments.push({
       index: segments.length,
@@ -445,7 +486,12 @@ function composeOutput(
   if (lastIndex < htmlWithPlaceholders.length) {
     const tail = htmlWithPlaceholders.slice(lastIndex);
     if (tail) {
-      const adjustedTail = adjustHtmlSegment(tail, currentRubyIndent, indentUnit, lastSensitive);
+      const adjustedTail = adjustHtmlSegment(
+        tail,
+        currentRubyIndent,
+        indentUnit,
+        lastSensitive,
+      );
       segments.push({
         index: segments.length,
         kind: "html",
@@ -502,18 +548,24 @@ function formatRubyPlaceholderSegment(
 
   const rendered = renderRubyRegion(region);
   const normalized = normalizeSegmentText(rendered, config);
-  const effects = region.flavor === "logic" ? analyzeRubyIndentation(region) : ZERO_INDENTATION_EFFECT;
+  const effects =
+    region.flavor === "logic"
+      ? analyzeRubyIndentation(region)
+      : ZERO_INDENTATION_EFFECT;
   const containerIndentContribution = info.indentationLevel;
   const rubyIndentLevel = clampIndent(currentRubyIndent + effects.before);
-  const totalIndentLevel = clampIndent(containerIndentContribution + rubyIndentLevel);
+  const totalIndentLevel = clampIndent(
+    containerIndentContribution + rubyIndentLevel,
+  );
 
   const formatted = applyIndentation(normalized, totalIndentLevel, config, {
     indentFirstLine: true,
   });
 
-  const nextIndent = region.flavor === "logic"
-    ? clampIndent(rubyIndentLevel + effects.after)
-    : currentRubyIndent;
+  const nextIndent =
+    region.flavor === "logic"
+      ? clampIndent(rubyIndentLevel + effects.after)
+      : currentRubyIndent;
 
   return {
     formatted,
@@ -523,7 +575,12 @@ function formatRubyPlaceholderSegment(
   };
 }
 
-function adjustHtmlSegment(text: string, rubyIndentLevel: number, indentUnit: string, sensitive: boolean): string {
+function adjustHtmlSegment(
+  text: string,
+  rubyIndentLevel: number,
+  indentUnit: string,
+  sensitive: boolean,
+): string {
   if (sensitive || rubyIndentLevel <= 0) {
     return text;
   }
@@ -621,7 +678,12 @@ function classifyRubyNode(node: SyntaxNode): IndentationEffect | null {
     case "call": {
       const methodNode = node.childForFieldName("method");
       const methodName = methodNode?.text ?? "";
-      if (methodName === "elsif" || methodName === "when" || methodName === "rescue" || methodName === "ensure") {
+      if (
+        methodName === "elsif" ||
+        methodName === "when" ||
+        methodName === "rescue" ||
+        methodName === "ensure"
+      ) {
         return { before: -1, after: 1 };
       }
 
@@ -645,7 +707,11 @@ function classifyByKeyword(code: string): IndentationEffect {
     return { before: -1, after: 1 };
   }
 
-  if (/^(if|unless|while|until|for|case|class|module|begin|def|method)\b/.test(code)) {
+  if (
+    /^(if|unless|while|until|for|case|class|module|begin|def|method)\b/.test(
+      code,
+    )
+  ) {
     return { before: 0, after: 1 };
   }
 
@@ -667,7 +733,10 @@ function applyIndentation(
   options: { indentFirstLine: boolean },
 ): string {
   if (!text) return text;
-  const indentUnit = config.indentation.style === "tab" ? "\t" : " ".repeat(config.indentation.size);
+  const indentUnit =
+    config.indentation.style === "tab"
+      ? "\t"
+      : " ".repeat(config.indentation.size);
   const indent = indentUnit.repeat(level);
 
   const newlineRegex = /\r?\n/g;
@@ -700,172 +769,4 @@ function applyIndentation(
     }
     return indent + trimmed;
   }
-}
-
-function renderRubyRegion(region: RubyRegion): string {
-  const open = region.delimiters.open;
-  const close = region.delimiters.close;
-  const normalizedCode = normalizeRubyInlineWhitespace(region.code ?? "");
-  if (!normalizedCode) {
-    return `${open}${close}`;
-  }
-  return `${open} ${normalizedCode} ${close}`;
-}
-
-function normalizeRubyInlineWhitespace(code: string): string {
-  let result = "";
-  let pendingSpace = false;
-  let inSingle = false;
-  let inDouble = false;
-  let escaped = false;
-
-  for (let i = 0; i < code.length; i += 1) {
-    const char = code[i];
-
-    if (inSingle) {
-      result += char;
-      if (!escaped && char === "'") {
-        inSingle = false;
-      }
-      escaped = !escaped && char === "\\";
-      continue;
-    }
-
-    if (inDouble) {
-      if (!escaped && char === '"') {
-        inDouble = false;
-        result += char;
-        escaped = false;
-        continue;
-      }
-      if (!escaped && char === "#" && code[i + 1] === "{") {
-        const { content, endIndex } = extractInterpolationExpression(code, i + 2);
-        const normalized = normalizeRubyInlineWhitespace(content);
-        result += `#{${normalized}}`;
-        i = endIndex;
-        escaped = false;
-        continue;
-      }
-      result += char;
-      escaped = !escaped && char === "\\";
-      continue;
-    }
-
-    if (char === "'") {
-      if (pendingSpace && !result.endsWith("\n")) {
-        result += " ";
-      }
-      pendingSpace = false;
-      inSingle = true;
-      escaped = false;
-      result += char;
-      continue;
-    }
-
-    if (char === '"') {
-      if (pendingSpace && !result.endsWith("\n")) {
-        result += " ";
-      }
-      pendingSpace = false;
-      inDouble = true;
-      escaped = false;
-      result += char;
-      continue;
-    }
-
-    if (char === " " || char === "\t") {
-      pendingSpace = result.length > 0 && !result.endsWith("\n");
-      continue;
-    }
-
-    if (char === "\n") {
-      while (result.endsWith(" ") || result.endsWith("\t")) {
-        result = result.slice(0, -1);
-      }
-      result += "\n";
-      pendingSpace = false;
-      continue;
-    }
-
-    if (pendingSpace && !result.endsWith("\n")) {
-      result += " ";
-    }
-    pendingSpace = false;
-    result += char;
-  }
-
-  return result.trim();
-}
-
-function extractInterpolationExpression(code: string, startIndex: number): { content: string; endIndex: number } {
-  let content = "";
-  let depth = 1;
-  let inSingle = false;
-  let inDouble = false;
-  let escaped = false;
-
-  for (let i = startIndex; i < code.length; i += 1) {
-    const char = code[i];
-
-    if (inSingle) {
-      content += char;
-      if (!escaped && char === "'") {
-        inSingle = false;
-      }
-      escaped = !escaped && char === "\\";
-      continue;
-    }
-
-    if (inDouble) {
-      if (!escaped && char === '"') {
-        inDouble = false;
-        content += char;
-        escaped = false;
-        continue;
-      }
-      if (!escaped && char === "#" && code[i + 1] === "{") {
-        const nested = extractInterpolationExpression(code, i + 2);
-        content += `#{${nested.content}}`;
-        i = nested.endIndex;
-        escaped = false;
-        continue;
-      }
-      content += char;
-      escaped = !escaped && char === "\\";
-      continue;
-    }
-
-    if (char === "'") {
-      inSingle = true;
-      escaped = false;
-      content += char;
-      continue;
-    }
-
-    if (char === '"') {
-      inDouble = true;
-      escaped = false;
-      content += char;
-      continue;
-    }
-
-    if (char === "{") {
-      depth += 1;
-      content += char;
-      continue;
-    }
-
-    if (char === "}") {
-      depth -= 1;
-      if (depth === 0) {
-        return { content, endIndex: i };
-      }
-      content += char;
-      continue;
-    }
-
-    content += char;
-  }
-
-  return { content, endIndex: code.length - 1 };
 }

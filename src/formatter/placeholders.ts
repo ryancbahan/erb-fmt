@@ -15,7 +15,9 @@ export interface PlaceholderDocument {
   placeholders: PlaceholderEntry[];
 }
 
-export function buildPlaceholderDocument(regions: ERBRegion[]): PlaceholderDocument {
+export function buildPlaceholderDocument(
+  regions: ERBRegion[],
+): PlaceholderDocument {
   const placeholders: PlaceholderEntry[] = [];
   const parts: string[] = [];
 

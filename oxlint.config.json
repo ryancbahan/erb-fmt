@@ -1,0 +1,12 @@
+{
+  "$schema": "https://oxc.rs/schemas/oxlint.json",
+  "select": ["recommended"],
+  "ignore": [
+    "dist/**",
+    "node_modules/**",
+    "tmp/**",
+    "benchmarks/**",
+    "examples/**/*.erb",
+    "docs/**/*.md"
+  ]
+}

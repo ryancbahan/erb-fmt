@@ -1,0 +1,86 @@
+<div class="admin-dashboard">
+  <% if @teams.any? %>
+    <section class="teams">
+      <header>
+        <h2>Teams</h2>
+        <%= link_to "New Team", new_team_path, class: "btn btn-primary" %>
+      </header>
+      <ul class="team-list">
+        <% @teams.each do |team| %>
+          <li class="team" data-team="<%= team.slug %>">
+            <h3><%= team.name %></h3>
+            <p class="summary"><%= truncate(team.summary, length: 120) %></p>
+            <div class="members" data-count="<%= team.members.count %>">
+              <% team.members.each do |member| %>
+                <span class="member" data-role="<%= member.role %>"><%= member.name %></span>
+              <% end %>
+            </div>
+            <div class="actions"><%= link_to "View", team_path(team), class: "btn btn-link" %><%= link_to "Edit", edit_team_path(team), class: "btn btn-link" %><%= button_to "Archive", team_archive_path(team), method: :post, data: { confirm: "Archive #{team.name}?" }, class: "btn btn-danger" %></div>
+          </li>
+        <% end %>
+      </ul>
+    </section>
+  <% else %>
+    <p class="empty-state">No teams yet. <%= link_to "Create one now", new_team_path %>.</p>
+  <% end %>
+  <section class="analytics" data-range="<%= params[:range] || '30d' %>">
+    <header>
+      <h2>Analytics</h2>
+    </header>
+    <% if @metrics.present? %>
+      <table class="metrics">
+        <thead>
+          <tr>
+            <th>Metric</th>
+            <th>Today</th>
+            <th>30d Avg</th>
+            <th>Trend</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @metrics.each do |metric| %>
+            <tr data-metric="<%= metric.key %>">
+              <td><%= metric.label %></td>
+              <td><%= number_with_delimiter(metric.today) %></td>
+              <td><%= number_with_precision(metric.avg_30d, precision: 2) %></td>
+              <td class="trend" data-direction="<%= metric.trend_direction %>">
+                <% if metric.trend_direction == :up %>
+                  <span class="trend-up">▲ <%= metric.trend_percentage %>%</span>
+                <% elsif metric.trend_direction == :down %>
+                  <span class="trend-down">▼ <%= metric.trend_percentage %>%</span>
+                <% else %>
+                  <span class="trend-flat">—</span>
+                <% end %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    <% else %>
+      <p class="empty-state">No analytics available.</p>
+    <% end %>
+  </section>
+  <section class="recent-activity">
+    <header>
+      <h2>Recent Activity</h2>
+    </header>
+    <% if @activity_stream.any? %>
+      <ul>
+        <% @activity_stream.each do |event| %>
+          <li data-kind="<%= event.kind %>" data-id="<%= event.id %>">
+            <strong><%= event.actor&.name || "System" %></strong>
+            <span class="message"><%= event.message %></span>
+            <time datetime="<%= event.timestamp.iso8601 %>"><%= l(event.timestamp, format: :short) %></time>
+            <% if event.details? %>
+        <pre class="payload">
+<%= JSON.pretty_generate(event.details).html_safe %>
+        </pre>
+                    <% end %>
+          </li>
+        <% end %>
+      </ul>
+    <% else %>
+      <p class="empty-state">No activity yet.</p>
+    <% end %>
+  </section>
+</div>

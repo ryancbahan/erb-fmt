@@ -78,7 +78,8 @@ export function parseERB(source: string): ParsedERB {
       case "directive":
       case "output_directive":
       case "comment_directive": {
-        const codeNode = child.namedChildren.find((node) => node.type === "code") ?? null;
+        const codeNode =
+          child.namedChildren.find((node) => node.type === "code") ?? null;
         const rawCodeText = codeNode ? sliceSource(source, codeNode) : "";
         const code = rawCodeText.trim();
         const rubyTree =

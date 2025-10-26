@@ -2,11 +2,17 @@ import fs from "fs";
 import { describe, expect, it } from "vitest";
 import { parseERB } from "../src/parser.js";
 import { buildPlaceholderDocument } from "../src/formatter/placeholders.js";
-import { analyzePlaceholderDocument, renderHtmlDocument } from "../src/formatter/htmlDocument.js";
+import {
+  analyzePlaceholderDocument,
+  renderHtmlDocument,
+} from "../src/formatter/htmlDocument.js";
 
 describe("html document analysis", () => {
   it("produces structured HTML with placeholder-aware indentation", () => {
-    const source = fs.readFileSync("examples/dashboard-unformatted.erb", "utf8");
+    const source = fs.readFileSync(
+      "examples/dashboard-unformatted.erb",
+      "utf8",
+    );
     const parsed = parseERB(source);
     const placeholderDocument = buildPlaceholderDocument(parsed.regions);
     const analysis = analyzePlaceholderDocument(placeholderDocument);
@@ -49,7 +55,10 @@ describe("html document analysis", () => {
             >
               <span class="owner">__ERB_PLACEHOLDER_16__</span>
               <span class="due" data-kind="date">__ERB_PLACEHOLDER_17__</span>
-              <span class="budget" data-currency="USD">__ERB_PLACEHOLDER_18__</span>
+              <span
+                class="budget"
+                data-currency="USD"
+              >__ERB_PLACEHOLDER_18__</span>
             </div>
           </header>
           <section class="card-body">
@@ -149,5 +158,25 @@ describe("html document analysis", () => {
     rendered.placeholderPrintInfo.forEach((info) => {
       expect(info.indentationLevel).toBeGreaterThanOrEqual(0);
     });
+  });
+
+  it("handles HTML comments and irregular markup without losing placeholders", () => {
+    const snippet = `<div><!-- before --><span class="item"><%= value %></span><!-- after --></div>`;
+    const parsed = parseERB(snippet);
+    const placeholderDocument = buildPlaceholderDocument(parsed.regions);
+    const analysis = analyzePlaceholderDocument(placeholderDocument);
+    const rendered = renderHtmlDocument(
+      analysis,
+      placeholderDocument.html,
+      2,
+      "space",
+      "conservative",
+      80,
+      "auto",
+    );
+
+    expect(rendered.html).toContain("__ERB_PLACEHOLDER_0__");
+    expect(rendered.html.trim().startsWith("<div")).toBe(true);
+    expect(analysis.diagnostics).toEqual([]);
   });
 });

@@ -2,14 +2,19 @@
 <%   @projects.each do    |project|   %>
 <div class="project-card"   id ="project-<%=   project.id    %>" data-state ="<%=project.state%>" data-tags ="<%= project.tags.join(',') %>"   data-featured ="<%= project.featured? %>"
 >
+
+
+
+
   <header class ="card-header"  data-empty="<%= project.tasks.empty? %>">
-    <h2 title ="<%=project.name%>">
+                  <h2 title ="<%=project.name%>">
       <span class   ="icon   <%= project.icon_class %>"></span>    <%=   project.name.upcase   %>
     </h2>
     <div class = "metadata" data-owner ="<%= project.owner&.name   ||   'Unassigned' %>" data-due ="<%= project.due_at&.iso8601 %>" data-budget ="<%= number_to_currency(project.budget) %>" data-flags="<%= project.flags.join('|') %>" >
       <span class="owner"> <%= project.owner&.name || 'Unassigned' %> </span>
       <span class = "due"   data-kind ="date">  <%= project.due_at ? l(project.due_at, format: :long) : 'No deadline' %> </span>
-      <span class="budget" data-currency = "USD"><%= number_to_currency(project.budget||0) %></span>
+      <span class="budget" 
+      data-currency = "USD"><%= number_to_currency(project.budget||0) %></span>
     </div>
   </header>
   <section class ="card-body">

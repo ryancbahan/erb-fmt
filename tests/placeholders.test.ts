@@ -1,17 +1,25 @@
 import fs from "fs";
 import { describe, expect, it } from "vitest";
 import { parseERB } from "../src/parser.js";
-import { buildPlaceholderDocument, restoreFromPlaceholders } from "../src/formatter/placeholders.js";
+import {
+  buildPlaceholderDocument,
+  restoreFromPlaceholders,
+} from "../src/formatter/placeholders.js";
 import { analyzePlaceholderDocument } from "../src/formatter/htmlDocument.js";
 
 describe("placeholder document", () => {
   it("replaces ruby regions with unique placeholders and restores the original text", () => {
-    const source = fs.readFileSync("examples/dashboard-unformatted.erb", "utf8");
+    const source = fs.readFileSync(
+      "examples/dashboard-unformatted.erb",
+      "utf8",
+    );
     const parsed = parseERB(source);
 
     const placeholderDocument = buildPlaceholderDocument(parsed.regions);
 
-    const rubyCount = parsed.regions.filter((region) => region.type === "ruby").length;
+    const rubyCount = parsed.regions.filter(
+      (region) => region.type === "ruby",
+    ).length;
     expect(placeholderDocument.placeholders).toHaveLength(rubyCount);
     placeholderDocument.placeholders.forEach((entry, index) => {
       expect(entry.id).toBe(index);
@@ -50,7 +58,12 @@ describe("placeholder document", () => {
 
     expect(placeholderDocument.placeholders).toHaveLength(0);
     expect(placeholderDocument.html).toBe(htmlOnly);
-    expect(restoreFromPlaceholders(placeholderDocument.html, placeholderDocument.placeholders)).toBe(htmlOnly);
+    expect(
+      restoreFromPlaceholders(
+        placeholderDocument.html,
+        placeholderDocument.placeholders,
+      ),
+    ).toBe(htmlOnly);
   });
   it("preserves placeholders in attribute contexts", () => {
     const source = '<div class="prefix <%= @status %> suffix">content</div>';
@@ -58,7 +71,9 @@ describe("placeholder document", () => {
     const placeholderDocument = buildPlaceholderDocument(parsed.regions);
 
     expect(placeholderDocument.placeholders).toHaveLength(1);
-    expect(placeholderDocument.html).toContain('class="prefix __ERB_PLACEHOLDER_0__ suffix"');
+    expect(placeholderDocument.html).toContain(
+      'class="prefix __ERB_PLACEHOLDER_0__ suffix"',
+    );
     const restored = restoreFromPlaceholders(
       placeholderDocument.html,
       placeholderDocument.placeholders,

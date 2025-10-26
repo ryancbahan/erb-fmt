@@ -1,0 +1,14 @@
+{
+  "indentation": {
+    "size": 4,
+    "style": "space"
+  },
+  "html": {
+    "attributeWrapping": "auto",
+    "lineWidth": 80
+  },
+  "whitespace": {
+    "trimTrailingWhitespace": true,
+    "ensureFinalNewline": true
+  }
+}

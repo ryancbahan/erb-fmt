@@ -4,9 +4,12 @@
     "module": "ESNext",
     "moduleResolution": "Node",
     "outDir": "dist",
+    "rootDir": "src",
     "strict": true,
     "esModuleInterop": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "declaration": true,
+    "declarationMap": true
   },
-  "include": ["src", "tests"]
+  "include": ["src"]
 }

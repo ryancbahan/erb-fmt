@@ -1,0 +1,11 @@
+{
+  "$schema": "https://oxc.rs/schemas/oxfmt.json",
+  "lineWidth": 100,
+  "indentStyle": "space",
+  "indentWidth": 2,
+  "ignore": [
+    "dist/**",
+    "node_modules/**",
+    "tmp/**"
+  ]
+}

@@ -8,7 +8,9 @@ export function printTree(tree: Tree, source: string) {
     do {
       const type = cursor.nodeType;
       const fieldName = cursor.currentFieldName;
-      const text = source.slice(cursor.startIndex, cursor.endIndex).replace(/\n/g, "\\n");
+      const text = source
+        .slice(cursor.startIndex, cursor.endIndex)
+        .replace(/\n/g, "\\n");
       const pieces = [`${"  ".repeat(depth)}- ${type}`];
       if (fieldName) pieces.push(`(${fieldName})`);
       pieces.push(`"${text}"`);

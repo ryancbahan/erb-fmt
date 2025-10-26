@@ -11,9 +11,15 @@ describe("formatERB", () => {
 
   it("formats sample template into structured output", () => {
     const result = formatERB(parsed);
-    expect(result.output).toBe(`<% if @user %>\n  <h1>Welcome, <%= @user.name %>!</h1>\n  <p>Your email is <%= @user.email %>.</p>\n<% else %>\n  <p>Please log in.</p>\n<% end %>\n`);
-    expect(result.segments.some((segment) => segment.kind === "html")).toBe(true);
-    expect(result.segments.some((segment) => segment.kind === "ruby")).toBe(true);
+    expect(result.output).toBe(
+      `<% if @user %>\n  <h1>Welcome, <%= @user.name %>!</h1>\n  <p>Your email is <%= @user.email %>.</p>\n<% else %>\n  <p>Please log in.</p>\n<% end %>\n`,
+    );
+    expect(result.segments.some((segment) => segment.kind === "html")).toBe(
+      true,
+    );
+    expect(result.segments.some((segment) => segment.kind === "ruby")).toBe(
+      true,
+    );
     expect(result.diagnostics).toEqual([]);
     expect(result.config).toEqual(DEFAULT_FORMATTER_CONFIG);
     expect(result.debug?.placeholderHtml).toContain("__ERB_PLACEHOLDER_0__");
@@ -26,14 +32,21 @@ describe("formatERB", () => {
     });
 
     expect(custom.config.indentation.size).toBe(4);
-    expect(custom.config.indentation.style).toBe(DEFAULT_FORMATTER_CONFIG.indentation.style);
+    expect(custom.config.indentation.style).toBe(
+      DEFAULT_FORMATTER_CONFIG.indentation.style,
+    );
     expect(custom.config.whitespace.trimTrailingWhitespace).toBe(false);
     expect(DEFAULT_FORMATTER_CONFIG.indentation.size).toBe(2);
-    expect(DEFAULT_FORMATTER_CONFIG.whitespace.trimTrailingWhitespace).toBe(true);
+    expect(DEFAULT_FORMATTER_CONFIG.whitespace.trimTrailingWhitespace).toBe(
+      true,
+    );
   });
 
   it("normalizes trailing whitespace and final newline across regions", () => {
-    let unformatted = fs.readFileSync("examples/sample-unformatted.erb", "utf8");
+    let unformatted = fs.readFileSync(
+      "examples/sample-unformatted.erb",
+      "utf8",
+    );
     if (unformatted.endsWith("\n")) {
       unformatted = unformatted.slice(0, -1);
     }
@@ -45,8 +58,12 @@ describe("formatERB", () => {
     expect(result.output).toBe(expected);
     expect(result.output.endsWith("\n")).toBe(true);
     expect(result.output).not.toMatch(/[ \t]+$/m);
-    expect(result.segments.some((segment) => segment.kind === "html")).toBe(true);
-    expect(result.segments.some((segment) => segment.kind === "ruby")).toBe(true);
+    expect(result.segments.some((segment) => segment.kind === "html")).toBe(
+      true,
+    );
+    expect(result.segments.some((segment) => segment.kind === "ruby")).toBe(
+      true,
+    );
   });
 
   it("computes indentation levels for nested ruby directives", () => {
@@ -97,11 +114,16 @@ describe("formatERB", () => {
     const snippet = `<% if condition %>\n<span>Body</span>\n<% end # comment %>\n`;
     const result = formatERB(parseERB(snippet));
 
-    expect(result.output).toBe(`<% if condition %>\n  <span>Body</span>\n<% end # comment %>\n`);
+    expect(result.output).toBe(
+      `<% if condition %>\n  <span>Body</span>\n<% end # comment %>\n`,
+    );
 
     const logicSegments = result.segments.filter(isLogicSegment);
     expect(
-      logicSegments.map((segment) => ({ code: segment.region!.code, level: segment.indentationLevel })),
+      logicSegments.map((segment) => ({
+        code: segment.region!.code,
+        level: segment.indentationLevel,
+      })),
     ).toEqual([
       { code: "if condition", level: 0 },
       { code: "end # comment", level: 0 },
@@ -109,7 +131,10 @@ describe("formatERB", () => {
   });
 
   it("collapses redundant HTML whitespace without touching semantic gaps", () => {
-    const source = fs.readFileSync("examples/dashboard-unformatted.erb", "utf8");
+    const source = fs.readFileSync(
+      "examples/dashboard-unformatted.erb",
+      "utf8",
+    );
     const result = formatERB(parseERB(source));
 
     expect(result.output).toMatchInlineSnapshot(`
@@ -124,7 +149,10 @@ describe("formatERB", () => {
               <div class="metadata" data-owner="<%= project.owner&.name || 'Unassigned' %>" data-due="<%= project.due_at&.iso8601 %>" data-budget="<%= number_to_currency(project.budget) %>" data-flags="<%= project.flags.join('|') %>">
                 <span class="owner"><%= project.owner&.name || 'Unassigned' %></span>
                 <span class="due" data-kind="date"><%= project.due_at ? l(project.due_at, format: :long) : 'No deadline' %></span>
-                <span class="budget" data-currency="USD"><%= number_to_currency(project.budget||0) %></span>
+                <span
+                  class="budget"
+                  data-currency="USD"
+                ><%= number_to_currency(project.budget||0) %></span>
               </div>
             </header>
             <section class="card-body">
@@ -213,6 +241,65 @@ describe("formatERB", () => {
     `);
   });
 
+  it("wraps complex attribute values while preserving JSON and ERB", () => {
+    const snippet = `<div data-json='{"items":[{"name":"Foo"},{"name":"Bar"}]}' data-attr="<%= { foo: 'bar', baz: value }.to_json %>" class='one   two three'>Text</div>`;
+    const result = formatERB(parseERB(snippet), {
+      html: {
+        attributeWrapping: "auto",
+        lineWidth: 60,
+      },
+    });
+
+    expect(result.output).toBe(`<div
+  data-json='{"items":[{"name":"Foo"},{"name":"Bar"}]}'
+  data-attr="<%= { foo: 'bar', baz: value }.to_json %>"
+  class='one two three'
+>Text</div>
+`);
+  });
+
+  it("forces multi-line layout when configured explicitly", () => {
+    const snippet = `<span id="item" data-description='{"content":"${"a".repeat(120)}"}' data-extra="<%= helper.generate(id: item.id, flags: params[:flags]) %>">Item</span>`;
+    const result = formatERB(parseERB(snippet), {
+      html: {
+        attributeWrapping: "force-multi-line",
+        lineWidth: 40,
+      },
+    });
+
+    expect(result.output).toBe(`<span
+  id="item"
+  data-description='{"content":"${"a".repeat(120)}"}'
+  data-extra="<%= helper.generate(id: item.id, flags: params[:flags]) %>"
+>Item</span>
+`);
+  });
+
+  it("gracefully formats markup with missing closing tags", () => {
+    const snippet = `<div><span class="label">Hi<% if condition %></div>`;
+    const result = formatERB(parseERB(snippet));
+
+    expect(result.output).toBe(`<div>
+  <span class="label">Hi<% if condition %></span>
+</div>
+`);
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it("preserves original markup when HTML parsing fails", () => {
+    const snippet = `<div data-json="{ \\"items\\": [ { \\"name\\": \\"Foo\\" } ] }">Text</div>`;
+    const result = formatERB(parseERB(snippet));
+
+    expect(result.output).toBe(`${snippet}\n`);
+    expect(result.diagnostics).toEqual([
+      {
+        index: -1,
+        severity: "error",
+        message: "HTML parse reported syntax errors in placeholder document",
+      },
+    ]);
+  });
+
   it("normalizes spacing inside ruby directives", () => {
     const snippet = `<div>
 <%   if  condition   %>
@@ -226,6 +313,20 @@ describe("formatERB", () => {
     <span><%= user.name %></span>
   <% end %>
 </div>
+`);
+  });
+
+  it("cleans up mixed indentation in HTML content", () => {
+    const snippet = `<ul>
+\t<li class="item">Item 1</li>
+  \t<li class="item">Item 2<% if flag %>!<% end %></li>
+</ul>`;
+    const result = formatERB(parseERB(snippet));
+
+    expect(result.output).toBe(`<ul>
+  <li class="item">Item 1</li>
+  <li class="item">Item 2<% if flag %>!<% end %></li>
+</ul>
 `);
   });
 
@@ -245,7 +346,9 @@ describe("formatERB", () => {
   });
 });
 
-function isLogicSegment(segment: FormatSegment): segment is FormatSegment & { region: RubyRegion } {
+function isLogicSegment(
+  segment: FormatSegment,
+): segment is FormatSegment & { region: RubyRegion } {
   return (
     segment.kind === "ruby" &&
     !!segment.region &&

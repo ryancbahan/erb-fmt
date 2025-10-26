@@ -1,0 +1,56 @@
+<section class="report" data-report="<%= report.slug %>">
+<header class="report-header">
+<h1><%= report.title %></h1>
+<p class="timestamp">Generated <%= time_ago_in_words(report.generated_at) %> ago by <%= report.author&.name || "System" %></p>
+<div class="filters">
+<% report.filters.each do |filter| %>
+<div class="filter" data-key="<%= filter.key %>">
+<span class="label"><%= filter.label %></span>
+<% if filter.options.present? %>
+<ul class="options">
+<% filter.options.each do |option| %>
+<li class="<%= "active" if option.selected? %>" data-value="<%= option.value %>"><%= option.name %></li>
+<% end %>
+</ul>
+<% else %>
+<span class="value"><%= filter.value %></span>
+<% end %>
+</div>
+<% end %>
+</div>
+</header>
+<div class="report-body">
+<% if report.sections.any? %>
+<% report.sections.each do |section| %>
+<article class="report-section" data-kind="<%= section.kind %>">
+<header>
+<h2><%= section.title %></h2>
+<p class="summary"><%= section.summary %></p>
+</header>
+<% if section.chart? %>
+<%= render "charts/#{section.chart_partial}", section: section %>
+<% elsif section.table? %>
+<%= render "reports/table", section: section %>
+<% elsif section.markdown? %>
+<div class="markdown"><%= markdown(section.body) %></div>
+<% end %>
+<% if section.notes.present? %>
+<details class="section-notes">
+<summary>Analyst notes</summary>
+<pre><%= section.notes %></pre>
+</details>
+<% end %>
+</article>
+<% end %>
+<% else %>
+<p class="empty-state">No sections were generated for this report.</p>
+<% end %>
+</div>
+<footer class="report-footer">
+<%= link_to "View full history", report_history_path(report), class: "btn btn-link" %>
+<%= button_to "Export CSV", export_report_path(report, format: :csv), method: :post, data: { turbo: false }, class: "btn btn-secondary" %>
+<% if policy(report).destroy? %>
+<%= button_to "Delete report", report_path(report), method: :delete, data: { confirm: "Delete this report permanently?" }, class: "btn btn-danger" %>
+<% end %>
+</footer>
+</section>

@@ -1,0 +1,86 @@
+0 verbose cli /Users/ryanbahan/.nvm/versions/node/v22.17.1/bin/node /Users/ryanbahan/.nvm/versions/node/v22.17.1/bin/npm
+1 info using npm@10.9.2
+2 info using node@v22.17.1
+3 silly config load:file:/Users/ryanbahan/.nvm/versions/node/v22.17.1/lib/node_modules/npm/npmrc
+4 silly config load:file:/Users/ryanbahan/projects/erb-formatter/tmp/smoke-npm/.npmrc
+5 silly config load:file:/Users/ryanbahan/projects/erb-formatter/tmp/smoke-npm/.home/.npmrc
+6 silly config load:file:/Users/ryanbahan/.nvm/versions/node/v22.17.1/etc/npmrc
+7 verbose title npm install ../../erb-formatter-0.0.1.tgz
+8 verbose argv "install" "../../erb-formatter-0.0.1.tgz"
+9 verbose logfile logs-max:10 dir:/Users/ryanbahan/projects/erb-formatter/tmp/smoke-npm/.home/.npm/_logs/2025-10-26T00_54_16_789Z-
+10 verbose logfile /Users/ryanbahan/projects/erb-formatter/tmp/smoke-npm/.home/.npm/_logs/2025-10-26T00_54_16_789Z-debug-0.log
+11 silly logfile done cleaning log files
+12 silly packumentCache heap:4345298944 maxSize:1086324736 maxEntrySize:543162368
+13 silly idealTree buildDeps
+14 silly fetch manifest erb-formatter@file:../../erb-formatter-0.0.1.tgz
+15 silly placeDep ROOT erb-formatter@0.0.1 OK for: smoke-npm@1.0.0 want: file:../../erb-formatter-0.0.1.tgz
+16 silly fetch manifest tree-sitter@^0.25.0
+17 silly packumentCache full:https://registry.npmjs.org/tree-sitter cache-miss
+18 silly fetch manifest tree-sitter-embedded-template@0.25.0
+19 silly packumentCache full:https://registry.npmjs.org/tree-sitter-embedded-template cache-miss
+20 silly fetch manifest tree-sitter-html@^0.23.0
+21 silly packumentCache full:https://registry.npmjs.org/tree-sitter-html cache-miss
+22 silly fetch manifest tree-sitter-ruby@^0.23.0
+23 silly packumentCache full:https://registry.npmjs.org/tree-sitter-ruby cache-miss
+24 http fetch GET https://registry.npmjs.org/tree-sitter attempt 1 failed with ENOTFOUND
+25 http fetch GET https://registry.npmjs.org/tree-sitter-embedded-template attempt 1 failed with ENOTFOUND
+26 http fetch GET https://registry.npmjs.org/tree-sitter-html attempt 1 failed with ENOTFOUND
+27 http fetch GET https://registry.npmjs.org/tree-sitter-ruby attempt 1 failed with ENOTFOUND
+28 http fetch GET https://registry.npmjs.org/tree-sitter attempt 2 failed with ENOTFOUND
+29 http fetch GET https://registry.npmjs.org/tree-sitter-embedded-template attempt 2 failed with ENOTFOUND
+30 http fetch GET https://registry.npmjs.org/tree-sitter-html attempt 2 failed with ENOTFOUND
+31 http fetch GET https://registry.npmjs.org/tree-sitter-ruby attempt 2 failed with ENOTFOUND
+32 http fetch GET https://registry.npmjs.org/tree-sitter attempt 3 failed with ENOTFOUND
+33 http fetch GET https://registry.npmjs.org/tree-sitter-embedded-template attempt 3 failed with ENOTFOUND
+34 http fetch GET https://registry.npmjs.org/tree-sitter-html attempt 3 failed with ENOTFOUND
+35 http fetch GET https://registry.npmjs.org/tree-sitter-ruby attempt 3 failed with ENOTFOUND
+36 silly fetch manifest tree-sitter@^0.25.0
+37 silly packumentCache full:https://registry.npmjs.org/tree-sitter cache-miss
+38 http fetch GET https://registry.npmjs.org/tree-sitter attempt 1 failed with ENOTFOUND
+39 http fetch GET https://registry.npmjs.org/tree-sitter attempt 2 failed with ENOTFOUND
+40 http fetch GET https://registry.npmjs.org/tree-sitter attempt 3 failed with ENOTFOUND
+41 silly fetch manifest tree-sitter-embedded-template@0.25.0
+42 silly packumentCache full:https://registry.npmjs.org/tree-sitter-embedded-template cache-miss
+43 http fetch GET https://registry.npmjs.org/tree-sitter-embedded-template attempt 1 failed with ENOTFOUND
+44 http fetch GET https://registry.npmjs.org/tree-sitter-embedded-template attempt 2 failed with ENOTFOUND
+45 http fetch GET https://registry.npmjs.org/tree-sitter-embedded-template attempt 3 failed with ENOTFOUND
+46 silly fetch manifest tree-sitter-html@^0.23.0
+47 silly packumentCache full:https://registry.npmjs.org/tree-sitter-html cache-miss
+48 http fetch GET https://registry.npmjs.org/tree-sitter-html attempt 1 failed with ENOTFOUND
+49 http fetch GET https://registry.npmjs.org/tree-sitter-html attempt 2 failed with ENOTFOUND
+50 http fetch GET https://registry.npmjs.org/tree-sitter-html attempt 3 failed with ENOTFOUND
+51 silly fetch manifest tree-sitter-ruby@^0.23.0
+52 silly packumentCache full:https://registry.npmjs.org/tree-sitter-ruby cache-miss
+53 http fetch GET https://registry.npmjs.org/tree-sitter-ruby attempt 1 failed with ENOTFOUND
+54 http fetch GET https://registry.npmjs.org/tree-sitter-ruby attempt 2 failed with ENOTFOUND
+55 http fetch GET https://registry.npmjs.org/tree-sitter-ruby attempt 3 failed with ENOTFOUND
+56 silly placeDep node_modules/erb-formatter tree-sitter@ OK for: erb-formatter@0.0.1 want: ^0.25.0
+57 silly placeDep node_modules/erb-formatter tree-sitter-embedded-template@ OK for: erb-formatter@0.0.1 want: 0.25.0
+58 silly placeDep node_modules/erb-formatter tree-sitter-html@ OK for: erb-formatter@0.0.1 want: ^0.23.0
+59 silly placeDep node_modules/erb-formatter tree-sitter-ruby@ OK for: erb-formatter@0.0.1 want: ^0.23.0
+60 verbose type system
+61 verbose stack FetchError: request to https://registry.npmjs.org/tree-sitter failed, reason: getaddrinfo ENOTFOUND registry.npmjs.org
+61 verbose stack     at ClientRequest.<anonymous> (/Users/ryanbahan/.nvm/versions/node/v22.17.1/lib/node_modules/npm/node_modules/minipass-fetch/lib/index.js:130:14)
+61 verbose stack     at ClientRequest.emit (node:events:518:28)
+61 verbose stack     at emitErrorEvent (node:_http_client:104:11)
+61 verbose stack     at _destroy (node:_http_client:898:9)
+61 verbose stack     at onSocketNT (node:_http_client:918:5)
+61 verbose stack     at process.processTicksAndRejections (node:internal/process/task_queues:91:21)
+62 error code ENOTFOUND
+63 error syscall getaddrinfo
+64 error errno ENOTFOUND
+65 error network request to https://registry.npmjs.org/tree-sitter failed, reason: getaddrinfo ENOTFOUND registry.npmjs.org
+66 error network This is a problem related to network connectivity.
+66 error network In most cases you are behind a proxy or have bad network settings.
+66 error network
+66 error network If you are behind a proxy, please make sure that the
+66 error network 'proxy' config is set properly.  See: 'npm help config'
+67 silly unfinished npm timer reify 1761440056929
+68 silly unfinished npm timer reify:loadTrees 1761440056930
+69 verbose cwd /Users/ryanbahan/projects/erb-formatter/tmp/smoke-npm
+70 verbose os Darwin 23.6.0
+71 verbose node v22.17.1
+72 verbose npm  v10.9.2
+73 verbose exit 1
+74 verbose code 1
+75 error A complete log of this run can be found in: /Users/ryanbahan/projects/erb-formatter/tmp/smoke-npm/.home/.npm/_logs/2025-10-26T00_54_16_789Z-debug-0.log
