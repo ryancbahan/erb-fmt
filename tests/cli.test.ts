@@ -43,18 +43,18 @@ describe("runCli", () => {
   const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
   const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
-afterEach(() => {
-  process.exitCode = originalExitCode;
-  logSpy.mockClear();
-  warnSpy.mockClear();
-  errorSpy.mockClear();
-});
+  afterEach(() => {
+    process.exitCode = originalExitCode;
+    logSpy.mockClear();
+    warnSpy.mockClear();
+    errorSpy.mockClear();
+  });
 
-afterAll(() => {
-  logSpy.mockRestore();
-  warnSpy.mockRestore();
-  errorSpy.mockRestore();
-});
+  afterAll(() => {
+    logSpy.mockRestore();
+    warnSpy.mockRestore();
+    errorSpy.mockRestore();
+  });
 
   it("formats multiple files when --write is provided", async () => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), TMP_PREFIX));
