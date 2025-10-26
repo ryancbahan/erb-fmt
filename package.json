@@ -1,6 +1,6 @@
 {
-  "name": "erb-formatter",
-  "version": "0.0.1",
+  "name": "erb-fmt",
+  "version": "0.1.1",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -54,10 +54,10 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/your-org/erb-formatter.git"
+    "url": "https://github.com/ryancbahan/erb-fmt.git"
   },
   "bugs": {
-    "url": "https://github.com/your-org/erb-formatter/issues"
+    "url": "https://github.com/ryancbahan/erb-fmt/issues"
   },
-  "homepage": "https://github.com/your-org/erb-formatter#readme"
+  "homepage": "https://github.com/ryancbahan/erb-fmt"
 }
