@@ -12,16 +12,28 @@ npm install --save-dev erb-formatter
 # format a template once
 npx erbfmt app/views/dashboard/index.html.erb
 
-# format in-place and show debug segments
-npx erbfmt --write --segments app/views/*.erb
+# format an entire view directory (recursive) in place
+npx erbfmt --write app/views/**/*.erb
+# print formatted output plus debug segments for a glob
+npx erbfmt --format --segments app/views/shared/**/*.erb
 ```
 
-- The CLI accepts a single file per invocation; wrap in a shell glob/loop when
-  formatting directories.
+- The CLI accepts multiple files or globs (e.g. `app/views/**/*.erb`) and
+  recursively walks directories to format every matching template. Use `--` to
+  terminate option parsing if a glob starts with a dash (for example,
+  `erbfmt --write -- ./-legacy/**/*.erb`).
 - Pass `--config path/to/config.json` or `--config-file` to supply overrides. See
   `docs/cli-usage.md` for flag details.
 - Configuration options mirror `FormatterConfig` (indentation, HTML wrapping,
   whitespace behaviour). Sample files live under `examples/config/`.
+
+### Formatting Multiple Files
+- Format a curated set of templates:  
+  `npx erbfmt --write layout.erb partials/header.erb partials/footer.erb`
+- Run a dry run that prints formatted output for an entire folder:  
+  `npx erbfmt --format app/views/admin/**/*.erb`
+- Combine recursive formatting with inline configuration overrides:  
+  `npx erbfmt --write --config "indentation.size=4" app/components/**/*.erb`
 
 ## Development Workflow
 
@@ -60,8 +72,8 @@ Additional guides:
 - **Attribute wrapping heuristics:** line-width calculations operate on
   placeholder text. After reinserting Ruby, very long helpers may still exceed
   the configured width (`src/formatter/htmlDocument.ts`).
-- **CLI scope:** the CLI processes one file per run and expects JSON configs. It
-  does not yet auto-discover configuration files or traverse directories
-  recursively (`src/cli.ts`).
+- **Configuration discovery:** the CLI requires explicit `--config` or
+  `--config-file` flags; there is no automatic lookup of project config files
+  yet (`src/cli.ts`).
 
 We track additional enhancements and roadmap items in `docs/formatter-roadmap.md`.

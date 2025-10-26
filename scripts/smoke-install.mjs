@@ -35,7 +35,10 @@ const MANAGER_ENVS = {
   pnpm: {
     PNPM_STORE_PATH: path.join(CACHE_ROOT, "pnpm-store"),
     npm_config_cache: path.join(CACHE_ROOT, "pnpm-npm-cache"),
-    NODE_OPTIONS: appendNodeOptions(process.env.NODE_OPTIONS, "--dns-result-order=ipv4first"),
+    NODE_OPTIONS: appendNodeOptions(
+      process.env.NODE_OPTIONS,
+      "--dns-result-order=ipv4first",
+    ),
   },
   yarn: {
     YARN_CACHE_FOLDER: path.join(CACHE_ROOT, "yarn-cache"),
@@ -73,7 +76,7 @@ async function main() {
   const requestedManagers = parseManagers(process.argv.slice(2));
   const managers = requestedManagers.length ? requestedManagers : MANAGER_ORDER;
 
-await ensureCacheDirectories();
+  await ensureCacheDirectories();
 
   console.log("→ Building project (npm run build)…");
   await execRequired("npm", ["run", "build"], {

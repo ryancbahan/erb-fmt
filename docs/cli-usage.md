@@ -3,8 +3,18 @@
 ## Quick Start
 ```bash
 npx erb-formatter --format app/views/dashboard.html.erb
+npx erb-formatter --write app/views/**/*.erb
 ```
 Without a configuration file the formatter uses the defaults defined in `DEFAULT_FORMATTER_CONFIG`. Use `--write` to overwrite files in place, and `--segments` or `--tree` for debugging output when tracking indentation or placeholder behaviour.
+
+## Multiple Files & Globs
+- Pass one or more file paths to format several templates in sequence:  
+  `erb-formatter --format layout.erb partials/header.erb`.
+- Provide glob patterns or directories and the formatter will walk them
+  recursively, processing every `.erb` file it finds:  
+  `erb-formatter --write app/views/**/*.erb`.
+- Use `--` to terminate option parsing if your glob begins with a dash, e.g.
+  `erb-formatter --write -- ./-legacy/**/*.erb`.
 
 ## CLI Options
 - `--format` – print the formatted template to stdout (default when `--write` is not provided).

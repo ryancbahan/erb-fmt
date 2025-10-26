@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import fs from "fs";
 import path from "path";
+import fg from "fast-glob";
+import { pathToFileURL } from "url";
 import type {
   FormatSegment,
   FormatterResult,
@@ -16,76 +18,119 @@ interface CliOptions {
   showFormatted: boolean;
   showSegments: boolean;
   write: boolean;
-  file: string;
+  targets: string[];
   config: FormatterConfigInput | undefined;
 }
 
-const args = process.argv.slice(2);
-const options = parseCliArguments(args);
+async function runCli(argv: string[] = process.argv.slice(2)): Promise<number> {
+  const options = parseCliArguments(argv);
 
-if (!options) {
-  printUsage();
-  process.exit(0);
-}
-
-const filePath = path.resolve(options.file);
-let source: string;
-try {
-  source = fs.readFileSync(filePath, "utf8");
-} catch (error) {
-  console.error(
-    `error: failed to read ${options.file}: ${(error as Error).message}`,
-  );
-  process.exit(2);
-}
-
-const parsed = parseERB(source);
-let formatterResult: FormatterResult;
-try {
-  formatterResult = formatERB(parsed, options.config);
-} catch (error) {
-  console.error(
-    `error: failed to format ${options.file}: ${(error as Error).message}`,
-  );
-  process.exit(3);
-}
-
-const hasErrorDiagnostics = formatterResult.diagnostics.some(
-  (diag) => diag.severity === "error",
-);
-
-printRegions(parsed.regions);
-
-if (options.showSegments) {
-  printSegments(formatterResult.segments);
-}
-
-if (formatterResult.diagnostics.length > 0) {
-  printDiagnostics(formatterResult.diagnostics);
-}
-
-if (hasErrorDiagnostics) {
-  process.exitCode = 1;
-}
-
-if (options.showFormatted || !options.write) {
-  printFormattedOutput(formatterResult.output);
-}
-
-if (options.write && !hasErrorDiagnostics) {
-  if (formatterResult.output !== source) {
-    fs.writeFileSync(filePath, formatterResult.output, "utf8");
-    if (!options.showFormatted) {
-      console.log(`Formatted ${options.file}`);
-    }
-  } else if (!options.showFormatted) {
-    console.log(`Already formatted ${options.file}`);
+  if (!options) {
+    printUsage();
+    return 0;
   }
-}
 
-if (options.showTree) {
-  console.log("\n=== Syntax Tree ===");
-  console.log(printTree(parsed.tree, source));
+  const { files: targetFiles, missing } = resolveTargetFiles(options.targets);
+
+  if (missing.length > 0) {
+    missing.forEach((pattern) => {
+      console.warn(`warning: no matches found for "${pattern}"`);
+    });
+  }
+
+  if (targetFiles.length === 0) {
+    console.error(
+      "error: no input files matched the provided paths or globs (expected *.erb)",
+    );
+    return 2;
+  }
+
+  const shouldPrintFormattedOutput =
+    options.showFormatted || (!options.write && targetFiles.length === 1);
+
+  let exitCode = 0;
+
+  targetFiles.forEach((filePath) => {
+    const displayPath = formatDisplayPath(filePath);
+    let source: string;
+    try {
+      source = fs.readFileSync(filePath, "utf8");
+    } catch (error) {
+      console.error(
+        `error: failed to read ${displayPath}: ${(error as Error).message}`,
+      );
+      exitCode = Math.max(exitCode, 2);
+      return;
+    }
+
+    const parsed = parseERB(source);
+    let formatterResult: FormatterResult;
+    try {
+      formatterResult = formatERB(parsed, options.config);
+    } catch (error) {
+      console.error(
+        `error: failed to format ${displayPath}: ${(error as Error).message}`,
+      );
+      exitCode = Math.max(exitCode, 3);
+      return;
+    }
+
+    const hasErrorDiagnostics = formatterResult.diagnostics.some(
+      (diag) => diag.severity === "error",
+    );
+
+    printRegions(
+      parsed.regions,
+      targetFiles.length > 1 ? displayPath : undefined,
+    );
+
+    if (options.showSegments) {
+      printSegments(
+        formatterResult.segments,
+        targetFiles.length > 1 ? displayPath : undefined,
+      );
+    }
+
+    if (formatterResult.diagnostics.length > 0) {
+      printDiagnostics(
+        formatterResult.diagnostics,
+        targetFiles.length > 1 ? displayPath : undefined,
+      );
+    }
+
+    if (hasErrorDiagnostics) {
+      exitCode = exitCode === 0 ? 1 : exitCode;
+    }
+
+    if (shouldPrintFormattedOutput) {
+      printFormattedOutput(
+        formatterResult.output,
+        targetFiles.length > 1 ? displayPath : undefined,
+      );
+    }
+
+    if (options.write && !hasErrorDiagnostics) {
+      if (formatterResult.output !== source) {
+        fs.writeFileSync(filePath, formatterResult.output, "utf8");
+        if (!shouldPrintFormattedOutput) {
+          console.log(`Formatted ${displayPath}`);
+        }
+      } else if (!shouldPrintFormattedOutput) {
+        console.log(`Already formatted ${displayPath}`);
+      }
+    }
+
+    if (options.showTree) {
+      const heading =
+        targetFiles.length > 1
+          ? `\n=== Syntax Tree (${displayPath}) ===`
+          : "\n=== Syntax Tree ===";
+      console.log(heading);
+      console.log(printTree(parsed.tree, source));
+    }
+  });
+
+  return exitCode;
 }
 
 function parseCliArguments(argv: string[]): CliOptions | null {
@@ -94,12 +139,17 @@ function parseCliArguments(argv: string[]): CliOptions | null {
   let showSegments = false;
   const configFragments: string[] = [];
   const configFiles: string[] = [];
-  let file: string | undefined;
+  const targets: string[] = [];
   let requestedHelp = false;
   let write = false;
+  let passthroughTargets = false;
 
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
+    if (passthroughTargets) {
+      targets.push(arg);
+      continue;
+    }
     if (arg === "--help" || arg === "-h") {
       requestedHelp = true;
       continue;
@@ -148,8 +198,12 @@ function parseCliArguments(argv: string[]): CliOptions | null {
       configFragments.push(arg.slice("--config=".length));
       continue;
     }
-    if (!arg.startsWith("-") && !file) {
-      file = arg;
+    if (arg === "--") {
+      passthroughTargets = true;
+      continue;
+    }
+    if (!arg.startsWith("-")) {
+      targets.push(arg);
       continue;
     }
     console.error(`error: unrecognized argument ${arg}`);
@@ -160,7 +214,7 @@ function parseCliArguments(argv: string[]): CliOptions | null {
     return null;
   }
 
-  if (!file) {
+  if (targets.length === 0) {
     return null;
   }
 
@@ -200,7 +254,79 @@ function parseCliArguments(argv: string[]): CliOptions | null {
     }
   }
 
-  return { showTree, showFormatted, showSegments, write, file, config };
+  return { showTree, showFormatted, showSegments, write, targets, config };
+}
+
+function resolveTargetFiles(
+  targets: string[],
+): {
+  files: string[];
+  missing: string[];
+} {
+  const files = new Set<string>();
+  const missing: string[] = [];
+
+  targets.forEach((target) => {
+    const trimmed = target.trim();
+    if (!trimmed) return;
+
+    const hasGlob = isGlobPattern(trimmed);
+    if (!hasGlob) {
+      const absolute = path.resolve(trimmed);
+      try {
+        const stats = fs.statSync(absolute);
+        if (stats.isDirectory()) {
+          const matches = fg.sync("**/*.erb", {
+            cwd: absolute,
+            absolute: true,
+            followSymbolicLinks: true,
+            dot: false,
+          });
+          if (matches.length === 0) {
+            missing.push(trimmed);
+          }
+          matches.forEach((match) => files.add(path.resolve(match)));
+          return;
+        }
+        if (stats.isFile()) {
+          files.add(absolute);
+          return;
+        }
+      } catch {
+        // fall through to glob handling
+      }
+    }
+
+    const matches = fg.sync(trimmed, {
+      cwd: process.cwd(),
+      absolute: true,
+      onlyFiles: true,
+      followSymbolicLinks: true,
+      dot: false,
+    });
+
+    if (matches.length === 0) {
+      missing.push(trimmed);
+      return;
+    }
+
+    matches.forEach((match) => files.add(path.resolve(match)));
+  });
+
+  const ordered = Array.from(files).sort((a, b) => a.localeCompare(b));
+  return { files: ordered, missing };
+}
+
+function isGlobPattern(value: string): boolean {
+  return /[*?[\]{}()!]/.test(value);
+}
+
+function formatDisplayPath(absolutePath: string): string {
+  const relative = path.relative(process.cwd(), absolutePath);
+  if (!relative || relative.startsWith("..")) {
+    return absolutePath;
+  }
+  return relative;
 }
 
 function parseConfigFragments(fragments: string[]): FormatterConfigInput {
@@ -342,8 +468,11 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function printRegions(regions: ParsedERB["regions"]) {
-  console.log("=== Regions ===");
+function printRegions(regions: ParsedERB["regions"], fileLabel?: string): void {
+  const heading = fileLabel
+    ? `=== Regions (${fileLabel}) ===`
+    : "=== Regions ===";
+  console.log(fileLabel ? `\n${heading}` : heading);
   regions.forEach((region, index) => {
     const header = `[${index}] ${region.type.toUpperCase()} ${formatRange(region.range)}`;
     if (region.type === "ruby") {
@@ -354,8 +483,11 @@ function printRegions(regions: ParsedERB["regions"]) {
   });
 }
 
-function printSegments(segments: FormatSegment[]) {
-  console.log("\n=== Formatter Segments ===");
+function printSegments(segments: FormatSegment[], fileLabel?: string): void {
+  const heading = fileLabel
+    ? `=== Formatter Segments (${fileLabel}) ===`
+    : "=== Formatter Segments ===";
+  console.log(`\n${heading}`);
   segments.forEach((segment) => {
     const typeLabel = segment.region
       ? segment.region.type.toUpperCase()
@@ -374,16 +506,25 @@ function printSegments(segments: FormatSegment[]) {
   });
 }
 
-function printFormattedOutput(output: string) {
-  console.log("\n=== Formatted Output ===");
+function printFormattedOutput(output: string, fileLabel?: string): void {
+  const heading = fileLabel
+    ? `=== Formatted Output (${fileLabel}) ===`
+    : "=== Formatted Output ===";
+  console.log(`\n${heading}`);
   process.stdout.write(output);
   if (!output.endsWith("\n")) {
     process.stdout.write("\n");
   }
 }
 
-function printDiagnostics(diagnostics: FormatterResult["diagnostics"]) {
-  console.log("\n=== Formatter Diagnostics ===");
+function printDiagnostics(
+  diagnostics: FormatterResult["diagnostics"],
+  fileLabel?: string,
+): void {
+  const heading = fileLabel
+    ? `=== Formatter Diagnostics (${fileLabel}) ===`
+    : "=== Formatter Diagnostics ===";
+  console.log(`\n${heading}`);
   diagnostics.forEach((diagnostic) => {
     console.log(
       `[${diagnostic.index}] ${diagnostic.severity.toUpperCase()}: ${diagnostic.message}`,
@@ -425,7 +566,7 @@ function printUsage(): void {
   console.log(`ERB Formatter
 
 Usage:
-  erbfmt [options] <file.erb>
+  erbfmt [options] <file|glob ...>
 
 Options:
   --format           Print formatted output.
@@ -439,8 +580,36 @@ Options:
 
 Examples:
   erbfmt --format app/views/users/show.html.erb
+  erbfmt --format app/views/shared/header.erb app/views/shared/footer.erb
   erbfmt --write app/views/users/show.html.erb
+  erbfmt --write app/views/**/*.erb
   erbfmt --config "indentation.size=4,html.attributeWrapping='auto'" template.erb
   erbfmt --config-file config/erbfmt.json --write dashboard.erb
 `);
 }
+
+if (isExecutedDirectly(import.meta.url)) {
+  runCli()
+    .then((code) => {
+      if (code !== 0) {
+        process.exitCode = code;
+      }
+    })
+    .catch((error) => {
+      console.error(
+        error instanceof Error ? (error.stack ?? error.message) : error,
+      );
+      process.exit(1);
+    });
+}
+
+function isExecutedDirectly(moduleUrl: string): boolean {
+  if (!process.argv[1]) return false;
+  try {
+    return moduleUrl === pathToFileURL(process.argv[1]).href;
+  } catch {
+    return false;
+  }
+}
+
+export { runCli, resolveTargetFiles };
