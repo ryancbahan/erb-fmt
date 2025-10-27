@@ -1,4 +1,6 @@
-import type { Tree } from "tree-sitter";
+type WebTreeSitter = typeof import("web-tree-sitter");
+type ParserInstance = InstanceType<WebTreeSitter["Parser"]>;
+type Tree = NonNullable<ReturnType<ParserInstance["parse"]>>;
 
 export function printTree(tree: Tree, source: string) {
   const cursor = tree.walk();

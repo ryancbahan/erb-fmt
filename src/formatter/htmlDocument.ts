@@ -1,8 +1,11 @@
-import Parser from "tree-sitter";
-import type { SyntaxNode, Tree } from "tree-sitter";
 import { getHtmlParser } from "../parser.js";
 import type { PlaceholderDocument, PlaceholderEntry } from "./placeholders.js";
 import { PLACEHOLDER_PREFIX, PLACEHOLDER_SUFFIX } from "./placeholders.js";
+
+type WebTreeSitter = typeof import("web-tree-sitter");
+type ParserInstance = InstanceType<WebTreeSitter["Parser"]>;
+type Tree = NonNullable<ReturnType<ParserInstance["parse"]>>;
+type SyntaxNode = Tree["rootNode"];
 
 const INLINE_ELEMENTS = new Set([
   "a",
@@ -101,9 +104,12 @@ export function analyzePlaceholderDocument(
 ): HtmlDocumentAnalysis {
   const parser = getHtmlParser();
   const tree = parser.parse(document.html);
+  if (!tree) {
+    throw new Error("Failed to parse placeholder document: HTML parser returned null tree.");
+  }
 
   const diagnostics: HtmlDiagnostic[] = [];
-  if (tree.rootNode.hasError) {
+  if (treeHasError(tree)) {
     diagnostics.push({
       message: "HTML parse reported syntax errors in placeholder document",
       severity: "error",
@@ -163,7 +169,7 @@ export function renderHtmlDocument(
   lineWidth: number | null,
   attributeWrapping: AttributeWrappingMode,
 ): HtmlPrintResult {
-  if (analysis.tree.rootNode.hasError) {
+  if (treeHasError(analysis.tree)) {
     const fallbackInfo = analysis.placeholders.map((placeholder) => ({
       entry: placeholder.entry,
       indentationLevel: placeholder.elementDepth,
@@ -628,4 +634,14 @@ function findEndTag(node: SyntaxNode): SyntaxNode | null {
     }
   }
   return null;
+}
+
+function treeHasError(tree: Tree): boolean {
+  const rootNode = tree.rootNode as unknown as {
+    hasError?: boolean | (() => boolean);
+  };
+  if (typeof rootNode.hasError === "function") {
+    return rootNode.hasError.call(tree.rootNode);
+  }
+  return Boolean(rootNode.hasError);
 }

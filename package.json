@@ -19,7 +19,8 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "npm run build:grammars && tsc",
+    "build:grammars": "node scripts/build-grammars.mjs",
     "start": "tsx src/cli.ts --format examples/sample.erb",
     "test": "vitest run",
     "lint": "node scripts/run-oxlint.mjs src tests scripts",
@@ -30,15 +31,15 @@
     "perf": "npm run build --silent && node scripts/perf.mjs"
   },
   "dependencies": {
-    "tree-sitter": "^0.25.0",
     "tree-sitter-embedded-template": "0.25.0",
     "tree-sitter-html": "^0.23.0",
-    "tree-sitter-ruby": "^0.23.0"
+    "tree-sitter-ruby": "^0.23.0",
+    "web-tree-sitter": "^0.25.9"
   },
   "devDependencies": {
+    "@types/node": "^20.14.10",
     "oxfmt": "^0.3.0",
     "oxlint": "^0.3.0",
-    "@types/node": "^20.14.10",
     "tsx": "^4.0.0",
     "typescript": "^5.5.0",
     "vitest": "^2.0.0"

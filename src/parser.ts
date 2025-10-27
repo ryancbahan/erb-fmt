@@ -1,15 +1,59 @@
-import Parser, { type Language } from "tree-sitter";
-import EmbeddedTemplate from "tree-sitter-embedded-template";
-import HTML from "tree-sitter-html";
-import Ruby from "tree-sitter-ruby";
+import fs from "fs/promises";
+import path from "path";
+import { Language as TreeSitterLanguage, Parser } from "web-tree-sitter";
+import { createRequire } from "module";
+import { fileURLToPath } from "url";
 
-const EMBEDDED_TEMPLATE_LANGUAGE = EmbeddedTemplate as unknown as Language;
-const HTML_LANGUAGE = HTML as unknown as Language;
-const RUBY_LANGUAGE = Ruby as unknown as Language;
+const require = createRequire(import.meta.url);
 
-type TemplateTree = Parser.Tree;
-type Range = Parser.Range;
-type SyntaxNode = Parser.SyntaxNode;
+interface LanguageSource {
+  wasmFile: string;
+  packageName: string;
+  packageAsset: string;
+}
+
+const LANGUAGE_SOURCES = {
+  embeddedTemplate: {
+    wasmFile: "embedded-template.wasm",
+    packageName: "tree-sitter-embedded-template",
+    packageAsset: "tree-sitter-embedded_template.wasm",
+  },
+  html: {
+    wasmFile: "html.wasm",
+    packageName: "tree-sitter-html",
+    packageAsset: "tree-sitter-html.wasm",
+  },
+  ruby: {
+    wasmFile: "ruby.wasm",
+    packageName: "tree-sitter-ruby",
+    packageAsset: "tree-sitter-ruby.wasm",
+  },
+} as const;
+
+await Parser.init();
+
+const [EMBEDDED_TEMPLATE_LANGUAGE, HTML_LANGUAGE, RUBY_LANGUAGE] = await Promise.all([
+  loadLanguage(LANGUAGE_SOURCES.embeddedTemplate),
+  loadLanguage(LANGUAGE_SOURCES.html),
+  loadLanguage(LANGUAGE_SOURCES.ruby),
+]);
+
+type ParserInstance = InstanceType<typeof Parser>;
+type TemplateTree = NonNullable<ReturnType<ParserInstance["parse"]>>;
+type SyntaxNode = TemplateTree["rootNode"];
+
+interface Range {
+  startIndex: number;
+  endIndex: number;
+  startPosition: {
+    row: number;
+    column: number;
+  };
+  endPosition: {
+    row: number;
+    column: number;
+  };
+}
 
 export type RubyDirectiveFlavor = "logic" | "output" | "comment" | "unknown";
 
@@ -58,15 +102,22 @@ export function parseERB(source: string): ParsedERB {
   rubyParser.setLanguage(RUBY_LANGUAGE);
 
   const tree = templateParser.parse(source);
+  if (!tree) {
+    throw new Error("Failed to parse ERB template: parser returned null tree.");
+  }
   const root = tree.rootNode;
   const regions: ERBRegion[] = [];
 
   for (const child of root.namedChildren) {
+    if (!child) continue;
     const text = sliceSource(source, child);
     const range = toRange(child);
     switch (child.type) {
       case "content": {
         const htmlTree = htmlParser.parse(text);
+        if (!htmlTree) {
+          throw new Error("Failed to parse HTML content region.");
+        }
         regions.push({
           type: "html",
           text,
@@ -79,7 +130,9 @@ export function parseERB(source: string): ParsedERB {
       case "output_directive":
       case "comment_directive": {
         const codeNode =
-          child.namedChildren.find((node) => node.type === "code") ?? null;
+          child.namedChildren.find(
+            (candidate): candidate is SyntaxNode => Boolean(candidate && candidate.type === "code"),
+          ) ?? null;
         const rawCodeText = codeNode ? sliceSource(source, codeNode) : "";
         const code = rawCodeText.trim();
         const rubyTree =
@@ -170,4 +223,36 @@ function toRange(node: SyntaxNode): Range {
 function ensureTrailingNewline(code: string): string {
   if (!code) return code;
   return code.endsWith("\n") ? code : `${code}\n`;
+}
+
+async function loadLanguage(source: LanguageSource): Promise<TreeSitterLanguage> {
+  const candidates = [
+    fileURLToPath(new URL(`./grammars/${source.wasmFile}`, import.meta.url)),
+    resolvePackageAsset(source.packageName, source.packageAsset),
+  ].filter(Boolean) as string[];
+
+  for (const candidate of candidates) {
+    try {
+      await fs.access(candidate);
+      return TreeSitterLanguage.load(candidate);
+    } catch {
+      // try next candidate
+    }
+  }
+
+  throw new Error(
+    `Unable to locate WebAssembly grammar for ${source.packageName}. Checked: ${candidates.join(
+      ", ",
+    )}`,
+  );
+}
+
+function resolvePackageAsset(packageName: string, asset: string): string | null {
+  try {
+    const packageJsonPath = require.resolve(`${packageName}/package.json`);
+    const packageDir = path.dirname(packageJsonPath);
+    return path.join(packageDir, asset);
+  } catch {
+    return null;
+  }
 }

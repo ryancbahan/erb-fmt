@@ -1,4 +1,3 @@
-import type { Tree, SyntaxNode } from "tree-sitter";
 import type { ERBRegion, ParsedERB, RubyRegion } from "../parser.js";
 import {
   buildPlaceholderDocument,
@@ -51,6 +50,11 @@ export interface FormatterConfig {
 }
 
 export type FormatterConfigInput = RecursivePartial<FormatterConfig>;
+
+type WebTreeSitter = typeof import("web-tree-sitter");
+type ParserInstance = InstanceType<WebTreeSitter["Parser"]>;
+type Tree = NonNullable<ReturnType<ParserInstance["parse"]>>;
+type SyntaxNode = Tree["rootNode"];
 
 export type SegmentMode = "passthrough" | "html-normalized" | "ruby-normalized" | "unknown";
 
@@ -636,7 +640,7 @@ function extractSignificantRubyNode(tree: Tree | null): SyntaxNode | null {
 
   while (queue.length > 0) {
     const node = queue.shift();
-    if (!node || node.isMissing) continue;
+    if (!node || nodeIsMissing(node)) continue;
     if (node.type === "comment") continue;
 
     if (CONTAINER_NODE_TYPES.has(node.type)) {
@@ -702,6 +706,16 @@ function classifyRubyNode(node: SyntaxNode): IndentationEffect | null {
     default:
       return null;
   }
+}
+
+function nodeIsMissing(node: SyntaxNode): boolean {
+  const candidate = node as unknown as {
+    isMissing?: boolean | (() => boolean);
+  };
+  if (typeof candidate.isMissing === "function") {
+    return candidate.isMissing.call(node);
+  }
+  return Boolean(candidate.isMissing);
 }
 
 function classifyByKeyword(code: string): IndentationEffect {

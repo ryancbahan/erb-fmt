@@ -27,10 +27,11 @@ function handleStartupError(error: unknown): void {
   didHandleError = true;
   debug("startup error", error instanceof Error ? error.stack ?? error.message : error);
 
-  if (isTreeSitterLoadError(error)) {
-    console.error("erb-fmt failed to start: unable to load the tree-sitter native bindings.");
+  if (isLanguageLoadError(error)) {
+    console.error("erb-fmt failed to start: unable to initialize the Tree-sitter grammars.");
     console.error(
-      "This usually means the install step never built the binaries. Try reinstalling and check your npm install logs.",
+      "This usually means the WebAssembly grammar files are missing or unreadable. " +
+        "Run `npm run build` (or reinstall the package) and try again.",
     );
     if (error instanceof Error) {
       console.error("");
@@ -67,16 +68,16 @@ function createDebugLogger(): (message: string, detail?: unknown) => void {
   };
 }
 
-function isTreeSitterLoadError(error: unknown): error is { message?: string; code?: string } {
+function isLanguageLoadError(error: unknown): error is { message?: string; code?: string } {
   if (!error || !(error instanceof Error)) {
     return false;
   }
   const message = error.message ?? "";
   const code = (error as { code?: string }).code;
   return (
-    code === "ERR_DLOPEN_FAILED" ||
-    (code === "ERR_MODULE_NOT_FOUND" && message.includes("tree-sitter")) ||
-    message.includes("tree-sitter.node") ||
-    (message.includes("tree-sitter") && message.includes("dlopen"))
+    code === "ENOENT" ||
+    message.includes("WebAssembly grammar") ||
+    (code === "ERR_MODULE_NOT_FOUND" && message.includes(".wasm")) ||
+    message.includes("WebAssembly.instantiate")
   );
 }
