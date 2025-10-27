@@ -1,6 +1,6 @@
 # ERB FMT
 
-*WARNING* This package is not yet stable and may not yet work without tree-sitter bindings natively installed. 
+*WARNING*: This package is not yet stable. Formatting may not capture complex ruby expressions well.  
 
 Fast and configurable code formatter for embedded Ruby templates.
 

@@ -25,10 +25,15 @@ function handleStartupError(error: unknown): void {
     return;
   }
   didHandleError = true;
-  debug("startup error", error instanceof Error ? error.stack ?? error.message : error);
+  debug(
+    "startup error",
+    error instanceof Error ? (error.stack ?? error.message) : error,
+  );
 
   if (isLanguageLoadError(error)) {
-    console.error("erb-fmt failed to start: unable to initialize the Tree-sitter grammars.");
+    console.error(
+      "erb-fmt failed to start: unable to initialize the Tree-sitter grammars.",
+    );
     console.error(
       "This usually means the WebAssembly grammar files are missing or unreadable. " +
         "Run `npm run build` (or reinstall the package) and try again.",
@@ -68,7 +73,9 @@ function createDebugLogger(): (message: string, detail?: unknown) => void {
   };
 }
 
-function isLanguageLoadError(error: unknown): error is { message?: string; code?: string } {
+function isLanguageLoadError(
+  error: unknown,
+): error is { message?: string; code?: string } {
   if (!error || !(error instanceof Error)) {
     return false;
   }

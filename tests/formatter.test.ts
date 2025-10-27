@@ -205,6 +205,40 @@ describe("formatERB", () => {
     expect(result.output).not.toMatch(/>[ \t]{2,}</); // adjacent tags separated by multiple spaces
   });
 
+  it("preserves strict locals comment directives", () => {
+    const snippet = `<%# locals: foo:, bar:, baz: %>\n<%= foo %>\n`;
+    const result = formatERB(parseERB(snippet));
+
+    expect(result.output.startsWith("<%# locals: foo:, bar:, baz: %>")).toBe(
+      true,
+    );
+    expect(result.output).toContain("<%= foo %>");
+  });
+
+  it("indents multi-line inline ruby expressions relative to HTML containers", () => {
+    const source = fs.readFileSync("examples/multiline-ruby.erb", "utf8");
+    const result = formatERB(parseERB(source));
+
+    expect(result.output).toBe(`<div class="field">
+  <%=
+    DeveloperDashboard::Tags::TextField.new(
+      object_name,
+      method_name,
+      template,
+      {
+        label:,
+        hide_label:,
+        show_character_count:,
+        name:,
+        id:,
+        **input_attributes
+      }
+    ).render
+  %>
+</div>
+`);
+  });
+
   it("preserves whitespace-sensitive content", () => {
     const snippet = `<pre>
   line 1

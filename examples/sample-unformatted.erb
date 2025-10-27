@@ -1,6 +1,6 @@
-<% if @user %>  
-  <h1>Welcome, <%= @user.name %>!</h1>    
-  <p>Your email is <%= @user.email %>.</p>   
-<% else %>  
-  <p>Please log in.</p>  
-<% end %>
+<% if    @user %>
+<h1>   Welcome,   <%=   @user.name   %>!</h1>   
+  <p>Your email is  <%= @user.email %>.   </p>
+<%else%>
+<p>	Please log in.	</p>
+<%   end %>

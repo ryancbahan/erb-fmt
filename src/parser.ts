@@ -32,11 +32,12 @@ const LANGUAGE_SOURCES = {
 
 await Parser.init();
 
-const [EMBEDDED_TEMPLATE_LANGUAGE, HTML_LANGUAGE, RUBY_LANGUAGE] = await Promise.all([
-  loadLanguage(LANGUAGE_SOURCES.embeddedTemplate),
-  loadLanguage(LANGUAGE_SOURCES.html),
-  loadLanguage(LANGUAGE_SOURCES.ruby),
-]);
+const [EMBEDDED_TEMPLATE_LANGUAGE, HTML_LANGUAGE, RUBY_LANGUAGE] =
+  await Promise.all([
+    loadLanguage(LANGUAGE_SOURCES.embeddedTemplate),
+    loadLanguage(LANGUAGE_SOURCES.html),
+    loadLanguage(LANGUAGE_SOURCES.ruby),
+  ]);
 
 type ParserInstance = InstanceType<typeof Parser>;
 type TemplateTree = NonNullable<ReturnType<ParserInstance["parse"]>>;
@@ -130,11 +131,17 @@ export function parseERB(source: string): ParsedERB {
       case "output_directive":
       case "comment_directive": {
         const codeNode =
-          child.namedChildren.find(
-            (candidate): candidate is SyntaxNode => Boolean(candidate && candidate.type === "code"),
+          child.namedChildren.find((candidate): candidate is SyntaxNode =>
+            Boolean(candidate && candidate.type === "code"),
           ) ?? null;
         const rawCodeText = codeNode ? sliceSource(source, codeNode) : "";
-        const code = rawCodeText.trim();
+        let code = rawCodeText.trim();
+        if (!code) {
+          const openLength = child.firstChild?.text.length ?? 0;
+          const closeLength = child.lastChild?.text.length ?? 0;
+          const inner = text.slice(openLength, text.length - closeLength);
+          code = inner.trim();
+        }
         const rubyTree =
           codeNode && code
             ? rubyParser.parse(ensureTrailingNewline(code))
@@ -225,7 +232,9 @@ function ensureTrailingNewline(code: string): string {
   return code.endsWith("\n") ? code : `${code}\n`;
 }
 
-async function loadLanguage(source: LanguageSource): Promise<TreeSitterLanguage> {
+async function loadLanguage(
+  source: LanguageSource,
+): Promise<TreeSitterLanguage> {
   const candidates = [
     fileURLToPath(new URL(`./grammars/${source.wasmFile}`, import.meta.url)),
     resolvePackageAsset(source.packageName, source.packageAsset),
@@ -247,7 +256,10 @@ async function loadLanguage(source: LanguageSource): Promise<TreeSitterLanguage>
   );
 }
 
-function resolvePackageAsset(packageName: string, asset: string): string | null {
+function resolvePackageAsset(
+  packageName: string,
+  asset: string,
+): string | null {
   try {
     const packageJsonPath = require.resolve(`${packageName}/package.json`);
     const packageDir = path.dirname(packageJsonPath);

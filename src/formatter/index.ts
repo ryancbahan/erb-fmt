@@ -539,9 +539,48 @@ function formatRubyPlaceholderSegment(
 
   if (info.inline || info.inAttribute) {
     const inlineText = renderRubyRegion(region, config);
+    if (!inlineText.includes("\n")) {
+      return {
+        formatted: inlineText,
+        indentationLevel: 0,
+        mode: "ruby-normalized",
+        nextIndent: currentRubyIndent,
+      };
+    }
+    const open = region.delimiters.open.trim();
+    const close = region.delimiters.close.trim();
+    const openIndex = inlineText.indexOf(open) + open.length;
+    const closeIndex = inlineText.lastIndexOf(close);
+    const bodyContent = inlineText.slice(openIndex, closeIndex).trim();
+    const normalizedInline = normalizeSegmentText(bodyContent, config);
+    const bodyLines = normalizedInline.split(/\r?\n/);
+    const baseIndent = indentUnit.repeat(info.indentationLevel);
+    const bodyIndentBase = info.indentationLevel + 1;
+    let structuralDepth = 0;
+    const formattedBodyLines = bodyLines.map((line) => {
+      const trimmed = line.trim();
+      if (!trimmed) {
+        return "";
+      }
+      const leadingClosers = countInlineLeadingClosers(trimmed);
+      const lineIndentLevel = Math.max(
+        bodyIndentBase,
+        bodyIndentBase + structuralDepth - leadingClosers,
+      );
+      const indentForLine = indentUnit.repeat(lineIndentLevel);
+      const formattedLine = `${indentForLine}${trimmed}`;
+      structuralDepth += computeInlineStructuralDelta(trimmed);
+      return formattedLine;
+    });
+    const openLine = `${baseIndent}${open}`;
+    const closeLine = `${baseIndent}${close}`;
+    let formattedInline = [openLine, ...formattedBodyLines, closeLine].join(
+      "\n",
+    );
+    formattedInline = `\n${formattedInline}\n`;
     return {
-      formatted: inlineText,
-      indentationLevel: 0,
+      formatted: formattedInline,
+      indentationLevel: info.indentationLevel,
       mode: "ruby-normalized",
       nextIndent: currentRubyIndent,
     };
@@ -716,6 +755,112 @@ function nodeIsMissing(node: SyntaxNode): boolean {
     return candidate.isMissing.call(node);
   }
   return Boolean(candidate.isMissing);
+}
+
+function countInlineLeadingClosers(line: string): number {
+  let index = 0;
+  let count = 0;
+  while (index < line.length) {
+    const remaining = line.slice(index);
+    if (remaining.startsWith("end")) {
+      count += 1;
+      index += 3;
+      continue;
+    }
+    if (
+      remaining.startsWith("else") ||
+      remaining.startsWith("elsif") ||
+      remaining.startsWith("when") ||
+      remaining.startsWith("rescue") ||
+      remaining.startsWith("ensure")
+    ) {
+      count += 1;
+      break;
+    }
+    const char = line[index];
+    if (char === ")" || char === "}" || char === "]") {
+      count += 1;
+      index += 1;
+      continue;
+    }
+    if (char === " " || char === "\t") {
+      index += 1;
+      continue;
+    }
+    break;
+  }
+  return count;
+}
+
+function computeInlineStructuralDelta(line: string): number {
+  let opens = 0;
+  let closes = 0;
+  let inSingle = false;
+  let inDouble = false;
+  let escaped = false;
+  for (let i = 0; i < line.length; i += 1) {
+    const char = line[i];
+    if (inSingle) {
+      if (!escaped && char === "'") {
+        inSingle = false;
+      }
+      escaped = !escaped && char === "\\";
+      continue;
+    }
+    if (inDouble) {
+      if (!escaped && char === '"') {
+        inDouble = false;
+      } else if (!escaped && char === "#" && line[i + 1] === "{") {
+        opens += 1;
+        i += 1;
+      }
+      escaped = !escaped && char === "\\";
+      continue;
+    }
+    if (char === "'") {
+      inSingle = true;
+      escaped = false;
+      continue;
+    }
+    if (char === '"') {
+      inDouble = true;
+      escaped = false;
+      continue;
+    }
+    if (char === "\\") {
+      escaped = !escaped;
+      continue;
+    }
+    if (char === "#") {
+      const next = line[i + 1];
+      if (next && next !== "{") {
+        break;
+      }
+      continue;
+    }
+    if (char === "(" || char === "{" || char === "[") {
+      opens += 1;
+      continue;
+    }
+    if (char === ")" || char === "}" || char === "]") {
+      closes += 1;
+      continue;
+    }
+  }
+  if (
+    /\bdo\b/.test(line) ||
+    /\b(?:def|class|module|if|unless|while|until|case|for|begin)\b/.test(line)
+  ) {
+    opens += 1;
+  }
+  if (/\b(?:else|elsif|when|rescue|ensure)\b/.test(line)) {
+    closes += 1;
+    opens += 1;
+  }
+  if (/\bend\b/.test(line)) {
+    closes += 1;
+  }
+  return opens - closes;
 }
 
 function classifyByKeyword(code: string): IndentationEffect {

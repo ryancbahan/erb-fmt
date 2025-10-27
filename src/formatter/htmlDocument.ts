@@ -105,7 +105,9 @@ export function analyzePlaceholderDocument(
   const parser = getHtmlParser();
   const tree = parser.parse(document.html);
   if (!tree) {
-    throw new Error("Failed to parse placeholder document: HTML parser returned null tree.");
+    throw new Error(
+      "Failed to parse placeholder document: HTML parser returned null tree.",
+    );
   }
 
   const diagnostics: HtmlDiagnostic[] = [];

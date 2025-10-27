@@ -31,11 +31,18 @@ async function main() {
   await resetDirectory(distDir);
 
   for (const grammar of grammars) {
-    const sourcePath = path.join(projectRoot, "node_modules", grammar.package, grammar.wasm);
+    const sourcePath = path.join(
+      projectRoot,
+      "node_modules",
+      grammar.package,
+      grammar.wasm,
+    );
     const outputPath = path.join(distDir, `${grammar.name}.wasm`);
     await ensureExists(sourcePath);
     await fs.copyFile(sourcePath, outputPath);
-    console.log(`✅ Copied ${grammar.wasm} → ${path.relative(projectRoot, outputPath)}`);
+    console.log(
+      `✅ Copied ${grammar.wasm} → ${path.relative(projectRoot, outputPath)}`,
+    );
   }
 }
 
@@ -48,11 +55,15 @@ async function ensureExists(filePath) {
   try {
     await fs.access(filePath);
   } catch (error) {
-    throw new Error(`Missing expected grammar artifact at ${filePath}`, { cause: error });
+    throw new Error(`Missing expected grammar artifact at ${filePath}`, {
+      cause: error,
+    });
   }
 }
 
 main().catch((error) => {
-  console.error(error instanceof Error ? error.stack ?? error.message : error);
+  console.error(
+    error instanceof Error ? (error.stack ?? error.message) : error,
+  );
   process.exit(1);
 });
