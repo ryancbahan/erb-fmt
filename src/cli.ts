@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import fs from "fs";
 import path from "path";
-import { pathToFileURL } from "url";
+import { fileURLToPath } from "url";
 import type {
   FormatSegment,
   FormatterResult,
@@ -765,7 +765,9 @@ if (isExecutedDirectly(import.meta.url)) {
 function isExecutedDirectly(moduleUrl: string): boolean {
   if (!process.argv[1]) return false;
   try {
-    return moduleUrl === pathToFileURL(process.argv[1]).href;
+    const modulePath = fs.realpathSync(fileURLToPath(moduleUrl));
+    const invokedPath = fs.realpathSync(process.argv[1]);
+    return modulePath === invokedPath;
   } catch {
     return false;
   }
