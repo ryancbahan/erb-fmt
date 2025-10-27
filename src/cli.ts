@@ -725,7 +725,7 @@ function printUsage(): void {
   console.log(`ERB Formatter
 
 Usage:
-  erbfmt [options] <file|glob ...>
+  erb-fmt [options] <file|glob ...>
 
 Options:
   --format           Print formatted output.
@@ -738,12 +738,12 @@ Options:
   --help, -h         Show this help message.
 
 Examples:
-  erbfmt --format app/views/users/show.html.erb
-  erbfmt --format app/views/shared/header.erb app/views/shared/footer.erb
-  erbfmt --write app/views/users/show.html.erb
-  erbfmt --write app/views/**/*.erb
-  erbfmt --config "indentation.size=4,html.attributeWrapping='auto'" template.erb
-  erbfmt --config-file config/erbfmt.json --write dashboard.erb
+  erb-fmt --format app/views/users/show.html.erb
+  erb-fmt --format app/views/shared/header.erb app/views/shared/footer.erb
+  erb-fmt --write app/views/users/show.html.erb
+  erb-fmt --write app/views/**/*.erb
+  erb-fmt --config "indentation.size=4,html.attributeWrapping='auto'" template.erb
+  erb-fmt --config-file config/erb-fmt.json --write dashboard.erb
 `);
 }
 

@@ -78,6 +78,18 @@ async function main() {
 
   await ensureCacheDirectories();
 
+  const packageJsonPath = path.join(ROOT_DIR, "package.json");
+  const packageJsonRaw = await fs.readFile(packageJsonPath, "utf8");
+  const packageJson = JSON.parse(packageJsonRaw);
+  const packageName = packageJson.name;
+  const binEntries = packageJson.bin ? Object.entries(packageJson.bin) : [];
+  const preferredBin = binEntries.find(([key]) => key === packageName);
+  const binName = preferredBin
+    ? preferredBin[0]
+    : binEntries.length > 0
+      ? binEntries[0][0]
+      : packageName;
+
   console.log("→ Building project (npm run build)…");
   await execRequired("npm", ["run", "build"], {
     cwd: ROOT_DIR,
@@ -94,7 +106,7 @@ async function main() {
       console.warn(`⚠️  Unknown manager "${manager}" – skipping.`);
       continue;
     }
-    const result = await smokeManager(manager, tarballPath);
+    const result = await smokeManager(manager, tarballPath, packageName, binName);
     results.push(result);
     console.log("");
   }
@@ -155,7 +167,7 @@ async function createTarball() {
   return path.join(packDir, entries[0].filename);
 }
 
-async function smokeManager(manager, tarballPath) {
+async function smokeManager(manager, tarballPath, packageName, binName) {
   const label = manager.toUpperCase();
   console.log(`→ ${label}: preparing clean project.`);
 
@@ -184,12 +196,12 @@ async function smokeManager(manager, tarballPath) {
       return { manager, ...installOutcome };
     }
 
-    const moduleCheck = await verifyModuleImport(tempDir);
+    const moduleCheck = await verifyModuleImport(tempDir, packageName);
     if (moduleCheck.status !== "success") {
       return { manager, ...moduleCheck };
     }
 
-    const cliCheck = await verifyCli(tempDir);
+    const cliCheck = await verifyCli(tempDir, binName);
     if (cliCheck.status !== "success") {
       return { manager, ...cliCheck };
     }
@@ -265,10 +277,11 @@ async function installPackage(manager, tempDir, tarballPath) {
   return { status: "success" };
 }
 
-async function verifyModuleImport(tempDir) {
+async function verifyModuleImport(tempDir, packageName) {
   console.log("   • Verifying module import…");
-  const snippet =
-    "import('erb-formatter').then(() => process.exit(0)).catch(() => process.exit(1));";
+  const snippet = `import('${packageName}')
+  .then(() => process.exit(0))
+  .catch(() => process.exit(1));`;
   const { code } = await runCommand(
     process.execPath,
     ["--input-type=module", "-e", snippet],
@@ -281,10 +294,10 @@ async function verifyModuleImport(tempDir) {
   return { status: "success" };
 }
 
-async function verifyCli(tempDir) {
+async function verifyCli(tempDir, binName) {
   console.log("   • Verifying CLI entry…");
-  const binName = process.platform === "win32" ? "erbfmt.cmd" : "erbfmt";
-  const cliPath = path.join(tempDir, "node_modules", ".bin", binName);
+  const cliExecutable = process.platform === "win32" ? `${binName}.cmd` : binName;
+  const cliPath = path.join(tempDir, "node_modules", ".bin", cliExecutable);
   try {
     await fs.access(cliPath);
   } catch {

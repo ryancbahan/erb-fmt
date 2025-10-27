@@ -5,15 +5,15 @@ Fast and configurable code formatter for embedded Ruby templates.
 ## Getting Started
 
 ```sh
-npm install --save-dev erb-formatter
+npm install --save-dev erb-fmt
 
 # format a template once
-npx erbfmt app/views/dashboard/index.html.erb
+npx erb-fmt app/views/dashboard/index.html.erb
 
 # format an entire view directory (recursive) in place
-npx erbfmt --write app/views/**/*.erb
+npx erb-fmt --write app/views/**/*.erb
 # print formatted output plus debug segments for a glob
-npx erbfmt --format --segments app/views/shared/**/*.erb
+npx erb-fmt --format --segments app/views/shared/**/*.erb
 ```
 
 - The CLI accepts multiple files or globs (e.g. `app/views/**/*.erb`) and
@@ -34,11 +34,11 @@ npx erbfmt --format --segments app/views/shared/**/*.erb
 
 ### Formatting Multiple Files
 - Format a curated set of templates:  
-  `npx erbfmt --write layout.erb partials/header.erb partials/footer.erb`
+  `npx erb-fmt --write layout.erb partials/header.erb partials/footer.erb`
 - Run a dry run that prints formatted output for an entire folder:  
-  `npx erbfmt --format app/views/admin/**/*.erb`
+  `npx erb-fmt --format app/views/admin/**/*.erb`
 - Combine recursive formatting with inline configuration overrides:  
-  `npx erbfmt --write --config "indentation.size=4" app/components/**/*.erb`
+  `npx erb-fmt --write --config "indentation.size=4" app/components/**/*.erb`
 
 ### Configuration Example
 You can supply a JSON file with `--config-file` (multiple files may be merged in
@@ -71,7 +71,7 @@ order). The snippet below shows every available option:
 Inline overrides apply last, e.g.:
 
 ```sh
-erb-formatter --config-file config/erb.json --config "indentation.size=4,ruby.format='none'" app/views/**/*.erb
+erb-fmt --config-file config/erb.json --config "indentation.size=4,ruby.format='none'" app/views/**/*.erb
 ```
 
 See `docs/config-reference.md` for a detailed description of each field.

@@ -53,5 +53,5 @@ You can merge multiple files by passing `--config-file` several times, or
 combine files with inline overrides:
 
 ```sh
-npx erbfmt --config-file config/erb.json --config "indentation.size=4,ruby.format='none'" app/views/**/*.erb
+npx erb-fmt --config-file config/erb.json --config "indentation.size=4,ruby.format='none'" app/views/**/*.erb
 ```
