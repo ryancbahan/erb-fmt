@@ -1,20 +1,32 @@
 #!/usr/bin/env node
 
-void main();
+const debug = createDebugLogger();
+
+process.on("uncaughtException", handleStartupError);
+process.on("unhandledRejection", (reason) => handleStartupError(reason));
+
+void main().catch(handleStartupError);
 
 async function main(): Promise<void> {
-  try {
-    const { runCli } = await import("./cli.js");
-    const code = await runCli();
-    if (code !== 0) {
-      process.exitCode = code;
-    }
-  } catch (error) {
-    handleStartupError(error);
+  debug("booting CLI");
+  const { runCli } = await import("./cli.js");
+  debug("cli module loaded");
+  const code = await runCli();
+  debug("runCli resolved", code);
+  if (code !== 0) {
+    process.exitCode = code;
   }
 }
 
+let didHandleError = false;
+
 function handleStartupError(error: unknown): void {
+  if (didHandleError) {
+    return;
+  }
+  didHandleError = true;
+  debug("startup error", error instanceof Error ? error.stack ?? error.message : error);
+
   if (isTreeSitterLoadError(error)) {
     console.error("erb-fmt failed to start: unable to load the tree-sitter native bindings.");
     console.error(
@@ -30,6 +42,29 @@ function handleStartupError(error: unknown): void {
     console.error(String(error));
   }
   process.exit(1);
+}
+
+function createDebugLogger(): (message: string, detail?: unknown) => void {
+  if (!process.env.ERB_FMT_DEBUG) {
+    return () => {};
+  }
+  return (message: string, detail?: unknown) => {
+    const pieces = [`[erb-fmt] ${message}`];
+    if (detail !== undefined) {
+      pieces.push(
+        typeof detail === "string"
+          ? detail
+          : (() => {
+              try {
+                return JSON.stringify(detail, null, 2);
+              } catch {
+                return String(detail);
+              }
+            })(),
+      );
+    }
+    process.stderr.write(`${pieces.join(" ")}\n`);
+  };
 }
 
 function isTreeSitterLoadError(error: unknown): error is { message?: string; code?: string } {
