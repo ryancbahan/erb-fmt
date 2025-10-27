@@ -106,7 +106,12 @@ async function main() {
       console.warn(`⚠️  Unknown manager "${manager}" – skipping.`);
       continue;
     }
-    const result = await smokeManager(manager, tarballPath, packageName, binName);
+    const result = await smokeManager(
+      manager,
+      tarballPath,
+      packageName,
+      binName,
+    );
     results.push(result);
     console.log("");
   }
@@ -296,7 +301,8 @@ async function verifyModuleImport(tempDir, packageName) {
 
 async function verifyCli(tempDir, binName) {
   console.log("   • Verifying CLI entry…");
-  const cliExecutable = process.platform === "win32" ? `${binName}.cmd` : binName;
+  const cliExecutable =
+    process.platform === "win32" ? `${binName}.cmd` : binName;
   const cliPath = path.join(tempDir, "node_modules", ".bin", cliExecutable);
   try {
     await fs.access(cliPath);
